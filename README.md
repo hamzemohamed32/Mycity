@@ -17,6 +17,11 @@ Recommended branch strategy:
 - create feature branches as `feature/<name>`
 - merge through pull requests only
 
+Repository governance files included:
+- [CODEOWNERS](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/.github/CODEOWNERS)
+- [Pull Request Template](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/.github/pull_request_template.md)
+- [Issue Templates](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/.github/ISSUE_TEMPLATE)
+
 Typical GitHub bootstrap:
 ```bash
 git remote add origin <your-github-repo-url>
