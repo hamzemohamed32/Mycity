@@ -1,0 +1,565 @@
+{
+  "meta": {
+    "name": "MyCity Backend Architecture",
+    "version": "1.0.0",
+    "description": "Arcforge-style backend architecture for a city government issue reporting and district operations platform.",
+    "product": "Smart city complaint and municipal service management platform"
+  },
+  "nodes": [
+    {
+      "id": "entry-citizen-app",
+      "type": "entry",
+      "position": { "x": 40, "y": 260 },
+      "data": {
+        "label": "Citizen App",
+        "subtitle": "web/mobile",
+        "description": "Citizens report water leaks, road breaks, street light failures, waste issues, and other city service problems."
+      }
+    },
+    {
+      "id": "entry-staff-app",
+      "type": "entry",
+      "position": { "x": 40, "y": 420 },
+      "data": {
+        "label": "District Staff App",
+        "subtitle": "operations portal",
+        "description": "District officers, supervisors, and city administrators manage queues, assignments, SLAs, and resolution."
+      }
+    },
+    {
+      "id": "router-api-gateway",
+      "type": "router",
+      "position": { "x": 280, "y": 330 },
+      "data": {
+        "label": "API Gateway",
+        "subtitle": "router",
+        "description": "Routes public, staff, admin, and webhook traffic to backend modules."
+      }
+    },
+    {
+      "id": "middleware-auth",
+      "type": "middleware",
+      "position": { "x": 520, "y": 330 },
+      "data": {
+        "label": "Auth Middleware",
+        "subtitle": "middleware",
+        "description": "JWT/session auth, role checks, district scope checks, rate limiting."
+      }
+    },
+    {
+      "id": "controller-issue",
+      "type": "controller",
+      "position": { "x": 760, "y": 260 },
+      "data": {
+        "label": "IssueController",
+        "subtitle": "controller",
+        "description": "Handles complaint creation, issue detail, listing, comments, and attachment confirmation."
+      }
+    },
+    {
+      "id": "controller-workflow",
+      "type": "controller",
+      "position": { "x": 760, "y": 420 },
+      "data": {
+        "label": "WorkflowController",
+        "subtitle": "controller",
+        "description": "Handles assignment, status updates, escalations, and district operations views."
+      }
+    },
+    {
+      "id": "request-create-issue",
+      "type": "formRequest",
+      "position": { "x": 1020, "y": 180 },
+      "data": {
+        "label": "StoreIssueRequest",
+        "subtitle": "form request",
+        "description": "Validates category, location, district, media keys, and idempotency key."
+      }
+    },
+    {
+      "id": "request-update-status",
+      "type": "formRequest",
+      "position": { "x": 1020, "y": 470 },
+      "data": {
+        "label": "UpdateStatusRequest",
+        "subtitle": "form request",
+        "description": "Validates allowed workflow transition, actor role, notes, and resolution payload."
+      }
+    },
+    {
+      "id": "resource-issue",
+      "type": "resource",
+      "position": { "x": 1020, "y": 300 },
+      "data": {
+        "label": "IssueResource",
+        "subtitle": "resource",
+        "description": "Formats issue response JSON for citizen and staff clients."
+      }
+    },
+    {
+      "id": "service-issue",
+      "type": "service",
+      "position": { "x": 1280, "y": 220 },
+      "data": {
+        "label": "IssueService",
+        "subtitle": "service",
+        "description": "Creates issues, writes audit trail, persists media references, emits IssueCreated."
+      }
+    },
+    {
+      "id": "service-routing",
+      "type": "service",
+      "position": { "x": 1280, "y": 330 },
+      "data": {
+        "label": "RoutingService",
+        "subtitle": "service",
+        "description": "Maps issues to district and department queues using category and geolocation."
+      }
+    },
+    {
+      "id": "service-workflow",
+      "type": "service",
+      "position": { "x": 1280, "y": 470 },
+      "data": {
+        "label": "WorkflowService",
+        "subtitle": "service",
+        "description": "Assignment, status transitions, SLA timers, escalation, and resolution logic."
+      }
+    },
+    {
+      "id": "repository-issue",
+      "type": "repository",
+      "position": { "x": 1540, "y": 180 },
+      "data": {
+        "label": "IssueRepository",
+        "subtitle": "repository",
+        "description": "Persists issues, comments, assignments, status history, and audit rows."
+      }
+    },
+    {
+      "id": "repository-district",
+      "type": "repository",
+      "position": { "x": 1540, "y": 320 },
+      "data": {
+        "label": "DistrictRepository",
+        "subtitle": "repository",
+        "description": "Loads district boundaries, service ownership, and queue configuration."
+      }
+    },
+    {
+      "id": "repository-user",
+      "type": "repository",
+      "position": { "x": 1540, "y": 470 },
+      "data": {
+        "label": "UserRepository",
+        "subtitle": "repository",
+        "description": "Loads citizen, staff, supervisor, and administrator records with district scope."
+      }
+    },
+    {
+      "id": "model-issue",
+      "type": "model",
+      "position": { "x": 1800, "y": 180 },
+      "data": {
+        "label": "Issue",
+        "subtitle": "model",
+        "description": "Core municipal issue entity."
+      }
+    },
+    {
+      "id": "model-district",
+      "type": "model",
+      "position": { "x": 1800, "y": 320 },
+      "data": {
+        "label": "District",
+        "subtitle": "model",
+        "description": "Administrative district boundary and ownership metadata."
+      }
+    },
+    {
+      "id": "model-user",
+      "type": "model",
+      "position": { "x": 1800, "y": 470 },
+      "data": {
+        "label": "User",
+        "subtitle": "model",
+        "description": "Citizen, district staff, supervisor, and central admin."
+      }
+    },
+    {
+      "id": "database-primary",
+      "type": "database",
+      "position": { "x": 2060, "y": 320 },
+      "data": {
+        "label": "PostgreSQL + PostGIS",
+        "subtitle": "database",
+        "description": "Primary source of truth for issues, users, districts, workflow, comments, SLA, and audit logs."
+      }
+    },
+    {
+      "id": "cache-redis",
+      "type": "cache",
+      "position": { "x": 2060, "y": 470 },
+      "data": {
+        "label": "Redis",
+        "subtitle": "cache",
+        "description": "Rate limiting, hot read cache, sessions, idempotency keys, and queue support."
+      }
+    },
+    {
+      "id": "storage-media",
+      "type": "storage",
+      "position": { "x": 2060, "y": 180 },
+      "data": {
+        "label": "Object Storage",
+        "subtitle": "storage",
+        "description": "Stores complaint photos, videos, and generated thumbnails."
+      }
+    },
+    {
+      "id": "search-index",
+      "type": "search",
+      "position": { "x": 2320, "y": 180 },
+      "data": {
+        "label": "Search Index",
+        "subtitle": "search",
+        "description": "Fast text and geo search for staff dashboards and public browsing."
+      }
+    },
+    {
+      "id": "event-issue-created",
+      "type": "event",
+      "position": { "x": 1540, "y": 80 },
+      "data": {
+        "label": "IssueCreated",
+        "subtitle": "event",
+        "description": "Raised after the primary DB transaction commits."
+      }
+    },
+    {
+      "id": "event-status-changed",
+      "type": "event",
+      "position": { "x": 1540, "y": 580 },
+      "data": {
+        "label": "IssueStatusChanged",
+        "subtitle": "event",
+        "description": "Raised after assignment, in-progress, resolved, reopened, or escalated transitions."
+      }
+    },
+    {
+      "id": "handler-media",
+      "type": "handler",
+      "position": { "x": 1800, "y": 60 },
+      "data": {
+        "label": "ProcessMedia",
+        "subtitle": "handler",
+        "description": "Thumbnail creation, metadata extraction, and antivirus/moderation checks."
+      }
+    },
+    {
+      "id": "handler-routing",
+      "type": "handler",
+      "position": { "x": 1800, "y": 120 },
+      "data": {
+        "label": "AssignDistrictQueue",
+        "subtitle": "handler",
+        "description": "Resolves responsible district and department from issue type and location."
+      }
+    },
+    {
+      "id": "handler-notify",
+      "type": "handler",
+      "position": { "x": 1800, "y": 580 },
+      "data": {
+        "label": "NotifyStakeholders",
+        "subtitle": "handler",
+        "description": "Sends citizen, staff, supervisor, and admin notifications."
+      }
+    },
+    {
+      "id": "handler-sla",
+      "type": "handler",
+      "position": { "x": 1800, "y": 640 },
+      "data": {
+        "label": "ScheduleSLA",
+        "subtitle": "handler",
+        "description": "Starts or updates SLA timers and escalation windows."
+      }
+    },
+    {
+      "id": "job-worker",
+      "type": "job",
+      "position": { "x": 2060, "y": 60 },
+      "data": {
+        "label": "Queue Workers",
+        "subtitle": "job",
+        "description": "Background workers for media, routing, search sync, notifications, and analytics."
+      }
+    },
+    {
+      "id": "external-maps",
+      "type": "external",
+      "position": { "x": 2320, "y": 320 },
+      "data": {
+        "label": "Maps/Geocoding API",
+        "subtitle": "external",
+        "description": "Reverse geocoding, ward lookup, and district boundary verification."
+      }
+    },
+    {
+      "id": "external-messaging",
+      "type": "external",
+      "position": { "x": 2320, "y": 580 },
+      "data": {
+        "label": "SMS/Email/Push",
+        "subtitle": "external",
+        "description": "Citizen and staff notification providers."
+      }
+    },
+    {
+      "id": "analytics",
+      "type": "analytics",
+      "position": { "x": 2320, "y": 60 },
+      "data": {
+        "label": "Analytics Warehouse",
+        "subtitle": "analytics",
+        "description": "Operational reporting by issue type, district, SLA, and department performance."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "entry-citizen-app",
+      "target": "router-api-gateway",
+      "label": "handles"
+    },
+    {
+      "id": "e2",
+      "source": "entry-staff-app",
+      "target": "router-api-gateway",
+      "label": "handles"
+    },
+    {
+      "id": "e3",
+      "source": "router-api-gateway",
+      "target": "middleware-auth",
+      "label": "routes"
+    },
+    {
+      "id": "e4",
+      "source": "middleware-auth",
+      "target": "controller-issue",
+      "label": "handles"
+    },
+    {
+      "id": "e5",
+      "source": "middleware-auth",
+      "target": "controller-workflow",
+      "label": "handles"
+    },
+    {
+      "id": "e6",
+      "source": "controller-issue",
+      "target": "request-create-issue",
+      "label": "validates"
+    },
+    {
+      "id": "e7",
+      "source": "controller-issue",
+      "target": "resource-issue",
+      "label": "formats"
+    },
+    {
+      "id": "e8",
+      "source": "controller-issue",
+      "target": "service-issue",
+      "label": "depends"
+    },
+    {
+      "id": "e9",
+      "source": "controller-workflow",
+      "target": "request-update-status",
+      "label": "validates"
+    },
+    {
+      "id": "e10",
+      "source": "controller-workflow",
+      "target": "service-workflow",
+      "label": "depends"
+    },
+    {
+      "id": "e11",
+      "source": "service-issue",
+      "target": "service-routing",
+      "label": "depends"
+    },
+    {
+      "id": "e12",
+      "source": "service-issue",
+      "target": "repository-issue",
+      "label": "writes"
+    },
+    {
+      "id": "e13",
+      "source": "service-routing",
+      "target": "repository-district",
+      "label": "reads"
+    },
+    {
+      "id": "e14",
+      "source": "service-workflow",
+      "target": "repository-issue",
+      "label": "writes"
+    },
+    {
+      "id": "e15",
+      "source": "service-workflow",
+      "target": "repository-user",
+      "label": "reads"
+    },
+    {
+      "id": "e16",
+      "source": "repository-issue",
+      "target": "model-issue",
+      "label": "maps"
+    },
+    {
+      "id": "e17",
+      "source": "repository-district",
+      "target": "model-district",
+      "label": "maps"
+    },
+    {
+      "id": "e18",
+      "source": "repository-user",
+      "target": "model-user",
+      "label": "maps"
+    },
+    {
+      "id": "e19",
+      "source": "model-issue",
+      "target": "database-primary",
+      "label": "stored-in"
+    },
+    {
+      "id": "e20",
+      "source": "model-district",
+      "target": "database-primary",
+      "label": "stored-in"
+    },
+    {
+      "id": "e21",
+      "source": "model-user",
+      "target": "database-primary",
+      "label": "stored-in"
+    },
+    {
+      "id": "e22",
+      "source": "service-issue",
+      "target": "event-issue-created",
+      "label": "dispatches"
+    },
+    {
+      "id": "e23",
+      "source": "service-workflow",
+      "target": "event-status-changed",
+      "label": "dispatches"
+    },
+    {
+      "id": "e24",
+      "source": "event-issue-created",
+      "target": "handler-media",
+      "label": "consumes"
+    },
+    {
+      "id": "e25",
+      "source": "event-issue-created",
+      "target": "handler-routing",
+      "label": "consumes"
+    },
+    {
+      "id": "e26",
+      "source": "event-status-changed",
+      "target": "handler-notify",
+      "label": "consumes"
+    },
+    {
+      "id": "e27",
+      "source": "event-status-changed",
+      "target": "handler-sla",
+      "label": "consumes"
+    },
+    {
+      "id": "e28",
+      "source": "handler-media",
+      "target": "job-worker",
+      "label": "runs-on"
+    },
+    {
+      "id": "e29",
+      "source": "handler-routing",
+      "target": "job-worker",
+      "label": "runs-on"
+    },
+    {
+      "id": "e30",
+      "source": "handler-notify",
+      "target": "job-worker",
+      "label": "runs-on"
+    },
+    {
+      "id": "e31",
+      "source": "handler-sla",
+      "target": "job-worker",
+      "label": "runs-on"
+    },
+    {
+      "id": "e32",
+      "source": "handler-media",
+      "target": "storage-media",
+      "label": "writes"
+    },
+    {
+      "id": "e33",
+      "source": "handler-routing",
+      "target": "external-maps",
+      "label": "calls-external"
+    },
+    {
+      "id": "e34",
+      "source": "handler-notify",
+      "target": "external-messaging",
+      "label": "calls-external"
+    },
+    {
+      "id": "e35",
+      "source": "job-worker",
+      "target": "search-index",
+      "label": "writes"
+    },
+    {
+      "id": "e36",
+      "source": "job-worker",
+      "target": "analytics",
+      "label": "writes"
+    },
+    {
+      "id": "e37",
+      "source": "service-issue",
+      "target": "cache-redis",
+      "label": "reads/writes"
+    },
+    {
+      "id": "e38",
+      "source": "service-workflow",
+      "target": "cache-redis",
+      "label": "reads/writes"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.58
+  }
+}

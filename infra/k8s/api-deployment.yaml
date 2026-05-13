@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-city-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-city-api
+  template:
+    metadata:
+      labels:
+        app: my-city-api
+    spec:
+      containers:
+        - name: api
+          image: my-city/api:latest
+          ports:
+            - containerPort: 4000
+          env:
+            - name: PORT
+              value: "4000"
+            - name: API_PREFIX
+              value: "api/v1"
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "my_city"
+            - name: DB_SYNC
+              value: "false"
+            - name: DB_MIGRATIONS_RUN
+              value: "false"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_REQUIRED
+              value: "true"
+            - name: JWT_AUDIENCE
+              value: "my-city-mobile"
+            - name: JWT_ISSUER
+              value: "my-city"
+            - name: JWT_ACCESS_SECRET
+              value: "replace-me-access"
+            - name: JWT_REFRESH_SECRET
+              value: "replace-me-refresh"
+            - name: ENABLE_NOTIFICATION_WORKER
+              value: "true"
+            - name: NOTIFICATION_WORKER_INTERVAL_MS
+              value: "3000"
+            - name: FCM_PROJECT_ID
+              value: ""
+            - name: FCM_CLIENT_EMAIL
+              value: ""
+            - name: FCM_PRIVATE_KEY
+              value: ""
+            - name: STORAGE_BUCKET
+              value: ""
+            - name: STORAGE_REGION
+              value: ""
+            - name: STORAGE_ENDPOINT
+              value: ""
+            - name: STORAGE_PUBLIC_BASE_URL
+              value: ""
+            - name: STORAGE_ACCESS_KEY_ID
+              value: ""
+            - name: STORAGE_SECRET_ACCESS_KEY
+              value: ""
+            - name: STORAGE_FORCE_PATH_STYLE
+              value: "false"
+            - name: STORAGE_SIGNED_URL_EXPIRES_SECONDS
+              value: "900"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"

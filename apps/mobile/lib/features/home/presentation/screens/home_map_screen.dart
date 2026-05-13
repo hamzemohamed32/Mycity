@@ -1,0 +1,291 @@
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../../shared/storage/offline/offline_queue.dart';
+import '../../../../shared/storage/session/session_controller.dart';
+import '../../../complaints/data/repositories/complaints_repository.dart';
+import '../../../complaints/domain/models/complaint_record.dart';
+import '../../../complaints/presentation/screens/complaint_detail_screen.dart';
+import '../../../complaints/presentation/screens/submit_complaint_screen.dart';
+import '../../../notifications/data/repositories/notifications_repository.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
+
+class HomeMapScreen extends StatefulWidget {
+  const HomeMapScreen({
+    super.key,
+    required this.sessionController,
+    required this.complaintsRepository,
+    required this.notificationsRepository,
+    required this.offlineQueue,
+  });
+
+  final SessionController sessionController;
+  final ComplaintsRepository complaintsRepository;
+  final NotificationsRepository notificationsRepository;
+  final OfflineComplaintQueue offlineQueue;
+
+  @override
+  State<HomeMapScreen> createState() => _HomeMapScreenState();
+}
+
+class _HomeMapScreenState extends State<HomeMapScreen> {
+  late Future<List<ComplaintRecord>> _complaintsFuture;
+  int _selectedIndex = 0;
+  String? _selectedComplaintId;
+
+  @override
+  void initState() {
+    super.initState();
+    _complaintsFuture = _refreshComplaints();
+  }
+
+  Future<List<ComplaintRecord>> _refreshComplaints() async {
+    final token = widget.sessionController.accessToken!;
+    final syncedCount = await widget.complaintsRepository.syncQueuedComplaints(
+      token: token,
+      queue: widget.offlineQueue,
+    );
+    final complaints = await widget.complaintsRepository.listComplaints(token);
+
+    if (complaints.isNotEmpty) {
+      _selectedComplaintId ??= complaints.first.id;
+    }
+
+    if (syncedCount > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$syncedCount offline complaint synced.')),
+      );
+    }
+
+    return complaints;
+  }
+
+  void _reloadComplaints() {
+    setState(() {
+      _complaintsFuture = _refreshComplaints();
+    });
+  }
+
+  Future<void> _openSubmitScreen() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SubmitComplaintScreen(
+          complaintsRepository: widget.complaintsRepository,
+          sessionController: widget.sessionController,
+          offlineQueue: widget.offlineQueue,
+        ),
+      ),
+    );
+
+    if (created == true) {
+      _reloadComplaints();
+    }
+  }
+
+  Future<void> _openComplaint(String complaintId) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ComplaintDetailScreen(
+          complaintId: complaintId,
+          complaintsRepository: widget.complaintsRepository,
+          sessionController: widget.sessionController,
+        ),
+      ),
+    );
+
+    _reloadComplaints();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      _buildMapWorkspace(context),
+      NotificationsScreen(
+        notificationsRepository: widget.notificationsRepository,
+        sessionController: widget.sessionController,
+      ),
+    ];
+
+    return Scaffold(
+      body: pages[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.map_outlined), label: 'Map'),
+          NavigationDestination(icon: Icon(Icons.notifications_none), label: 'Updates'),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openSubmitScreen,
+        label: const Text('Report issue'),
+        icon: const Icon(Icons.add_location_alt_outlined),
+      ),
+    );
+  }
+
+  Widget _buildMapWorkspace(BuildContext context) {
+    return FutureBuilder<List<ComplaintRecord>>(
+      future: _complaintsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: FilledButton(
+              onPressed: _reloadComplaints,
+              child: const Text('Reload map'),
+            ),
+          );
+        }
+
+        final complaints = snapshot.data ?? const <ComplaintRecord>[];
+        final selectedComplaint = _selectedComplaint(complaints);
+        final initialTarget = complaints.isNotEmpty
+            ? LatLng(complaints.first.lat, complaints.first.lng)
+            : const LatLng(-1.286389, 36.817223);
+
+        return SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('City Service Map', style: Theme.of(context).textTheme.headlineMedium),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Signed in as ${widget.sessionController.session?.fullName ?? 'Citizen'}.',
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Refresh',
+                      onPressed: _reloadComplaints,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    IconButton(
+                      tooltip: 'Sign out',
+                      onPressed: () => widget.sessionController.clear(),
+                      icon: const Icon(Icons.logout),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: initialTarget,
+                          zoom: 13,
+                        ),
+                        myLocationEnabled: true,
+                        zoomControlsEnabled: false,
+                        markers: complaints
+                            .map(
+                              (complaint) => Marker(
+                                markerId: MarkerId(complaint.id),
+                                position: LatLng(complaint.lat, complaint.lng),
+                                infoWindow: InfoWindow(
+                                  title: complaint.title,
+                                  snippet: complaint.districtName ?? complaint.statusLabel,
+                                ),
+                                onTap: () {
+                                  setState(() => _selectedComplaintId = complaint.id);
+                                },
+                              ),
+                            )
+                            .toSet(),
+                      ),
+                    ),
+                    if (selectedComplaint != null)
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 18,
+                        child: Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(22),
+                            onTap: () => _openComplaint(selectedComplaint.id),
+                            child: Padding(
+                              padding: const EdgeInsets.all(18),
+                              child: Row(
+                                children: [
+                                  const CircleAvatar(
+                                    backgroundColor: Color(0xFFE3F1EC),
+                                    child: Icon(Icons.place_outlined, color: Color(0xFF0E7C66)),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          selectedComplaint.title,
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${selectedComplaint.statusLabel} / ${selectedComplaint.supportCount} supporters / ${selectedComplaint.districtName ?? 'Unassigned'}',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 18,
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: const Text('No complaints yet. Submit the first report from this account.'),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  ComplaintRecord? _selectedComplaint(List<ComplaintRecord> complaints) {
+    if (complaints.isEmpty) {
+      return null;
+    }
+
+    for (final complaint in complaints) {
+      if (complaint.id == _selectedComplaintId) {
+        return complaint;
+      }
+    }
+
+    return complaints.first;
+  }
+}

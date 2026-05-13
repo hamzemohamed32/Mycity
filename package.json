@@ -1,0 +1,19 @@
+{
+  "name": "my-city-platform",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "infra:up": "docker compose --env-file infra/docker/compose.env -f infra/docker/docker-compose.yml up --build -d",
+    "infra:dev": "docker compose --env-file infra/docker/compose.env -f infra/docker/docker-compose.yml up --build",
+    "infra:down": "docker compose --env-file infra/docker/compose.env -f infra/docker/docker-compose.yml down",
+    "backend:dev": "npm --workspace backend run start:dev",
+    "backend:migrate": "npm --workspace backend run migration:run",
+    "backend:seed": "npm --workspace backend run seed",
+    "backend:build": "npm --workspace backend run build",
+    "backend:test": "npm --workspace backend run test && npm --workspace backend run test:e2e",
+    "backend:test:e2e": "npm --workspace backend run test:e2e"
+  }
+}

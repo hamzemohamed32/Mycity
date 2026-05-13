@@ -1,0 +1,77 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: my_city
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d my_city"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: my_city
+      DB_SYNC: "false"
+      DB_MIGRATIONS_RUN: "true"
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_REQUIRED: "true"
+      JWT_AUDIENCE: my-city-mobile
+      JWT_ISSUER: my-city
+      JWT_ACCESS_SECRET: replace-me-access
+      JWT_REFRESH_SECRET: replace-me-refresh
+      ENABLE_NOTIFICATION_WORKER: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run migrations
+        run: npm run backend:migrate
+
+      - name: Seed database
+        run: npm run backend:seed
+
+      - name: Build backend
+        run: npm run backend:build
+
+      - name: Run unit tests
+        run: npm --workspace backend run test
+
+      - name: Run e2e tests
+        run: npm --workspace backend run test:e2e
