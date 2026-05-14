@@ -30,6 +30,15 @@ describe('UploadsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects unsupported image content types', async () => {
+    await expect(
+      service.createSession('user-1', {
+        fileName: 'vector.svg',
+        contentType: 'image/svg+xml',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects incomplete storage configuration', async () => {
     delete process.env.STORAGE_BUCKET;
 
@@ -53,5 +62,9 @@ describe('UploadsService', () => {
     expect(result.objectKey).toContain('complaints/user-1/');
     expect(result.publicUrl).toContain('/complaints/user-1/');
     expect(result.expiresAt).toBeDefined();
+    expect(result.method).toBe('PUT');
+    expect(result.headers).toEqual({
+      'Content-Type': 'image/jpeg',
+    });
   });
 });

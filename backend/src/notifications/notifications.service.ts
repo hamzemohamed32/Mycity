@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getMessaging } from 'firebase-admin/messaging';
-import { Repository } from 'typeorm';
+import { BatchResponse, getMessaging } from 'firebase-admin/messaging';
+import { In, Repository } from 'typeorm';
 import { Complaint } from '../complaints/entities/complaint.entity';
 import { QueueJobType } from '../queue/queue.constants';
 import { QueueService } from '../queue/queue.service';
@@ -10,6 +10,11 @@ import { NotificationEvent } from './entities/notification-event.entity';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { NotificationDeliveryStatus } from './entities/notification-event.entity';
 import { UserDevice } from './entities/user-device.entity';
+
+const HARD_FAILURE_CODES = new Set([
+  'messaging/invalid-registration-token',
+  'messaging/registration-token-not-registered',
+]);
 
 @Injectable()
 export class NotificationsService {
@@ -123,7 +128,7 @@ export class NotificationsService {
       if (this.hasFirebaseCredentials()) {
         await this.ensureFirebaseApp();
 
-        await getMessaging().sendEachForMulticast({
+        const response = await getMessaging().sendEachForMulticast({
           tokens: devices.map((device) => device.fcmToken),
           notification: {
             title: event.title,
@@ -135,6 +140,15 @@ export class NotificationsService {
             type: event.type,
           },
         });
+
+        const deliveryOutcome = await this.handleBatchResponse(event, devices, response);
+        if (deliveryOutcome === NotificationDeliveryStatus.Delivered) {
+          return;
+        }
+
+        if (deliveryOutcome === NotificationDeliveryStatus.NoDevices) {
+          return;
+        }
       } else {
         this.logger.log(
           `Notification ${event.id} marked delivered without FCM credentials (local fallback mode)`,
@@ -162,6 +176,45 @@ export class NotificationsService {
       );
       throw error;
     }
+  }
+
+  async getDeliveryStats(): Promise<{
+    events: Record<string, number>;
+    devices: { active: number; inactive: number };
+  }> {
+    const eventRows = await this.notificationEventsRepository
+      .createQueryBuilder('event')
+      .select('event.deliveryStatus', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('event.deliveryStatus')
+      .getRawMany<{ status: string; count: string }>();
+
+    const deviceRows = await this.devicesRepository
+      .createQueryBuilder('device')
+      .select('device.isActive', 'isActive')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('device.isActive')
+      .getRawMany<{ isActive: boolean | string; count: string }>();
+
+    const events = eventRows.reduce<Record<string, number>>((accumulator, row) => {
+      accumulator[row.status] = Number(row.count);
+      return accumulator;
+    }, {});
+
+    const devices = deviceRows.reduce(
+      (accumulator, row) => {
+        const isActive = row.isActive === true || row.isActive === 'true';
+        if (isActive) {
+          accumulator.active = Number(row.count);
+        } else {
+          accumulator.inactive = Number(row.count);
+        }
+        return accumulator;
+      },
+      { active: 0, inactive: 0 },
+    );
+
+    return { events, devices };
   }
 
   private async enqueueDelivery(notificationEventId: string): Promise<void> {
@@ -195,5 +248,70 @@ export class NotificationsService {
         privateKey: process.env.FCM_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       }),
     });
+  }
+
+  private async handleBatchResponse(
+    event: NotificationEvent,
+    devices: UserDevice[],
+    response: BatchResponse,
+  ): Promise<NotificationDeliveryStatus> {
+    const invalidDeviceIds: string[] = [];
+    const retryableMessages: string[] = [];
+
+    response.responses.forEach((result, index) => {
+      if (result.success) {
+        return;
+      }
+
+      const code = result.error?.code;
+      const message = result.error?.message ?? 'Notification delivery failed';
+      const device = devices[index];
+
+      if (device && code && HARD_FAILURE_CODES.has(code)) {
+        invalidDeviceIds.push(device.id);
+        return;
+      }
+
+      retryableMessages.push(message);
+    });
+
+    if (invalidDeviceIds.length) {
+      await this.devicesRepository.update(
+        {
+          id: In(invalidDeviceIds),
+        },
+        {
+          isActive: false,
+        },
+      );
+    }
+
+    if (response.successCount > 0) {
+      await this.notificationEventsRepository.update(
+        { id: event.id },
+        {
+          deliveryStatus: NotificationDeliveryStatus.Delivered,
+          deliveryAttempts: event.deliveryAttempts + 1,
+          deliveredAt: new Date(),
+          lastDeliveryError:
+            invalidDeviceIds.length > 0 ? 'Some device tokens were invalidated during delivery' : null,
+        },
+      );
+      return NotificationDeliveryStatus.Delivered;
+    }
+
+    if (invalidDeviceIds.length === devices.length && retryableMessages.length === 0) {
+      await this.notificationEventsRepository.update(
+        { id: event.id },
+        {
+          deliveryStatus: NotificationDeliveryStatus.NoDevices,
+          deliveryAttempts: event.deliveryAttempts + 1,
+          lastDeliveryError: 'All active device tokens were invalid and have been deactivated',
+        },
+      );
+      return NotificationDeliveryStatus.NoDevices;
+    }
+
+    throw new Error(retryableMessages[0] ?? 'Notification delivery failed');
   }
 }

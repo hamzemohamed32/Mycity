@@ -3,14 +3,23 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CreateUploadSessionDto } from './dto/create-upload-session.dto';
+import { UploadSessionResponseDto } from './dto/upload-session-response.dto';
+
+const ALLOWED_IMAGE_CONTENT_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]);
 
 @Injectable()
 export class UploadsService {
   private s3Client: S3Client | null = null;
 
-  async createSession(userId: string, payload: CreateUploadSessionDto): Promise<Record<string, string>> {
-    if (!payload.contentType.startsWith('image/')) {
-      throw new BadRequestException('Only image uploads are currently supported');
+  async createSession(userId: string, payload: CreateUploadSessionDto): Promise<UploadSessionResponseDto> {
+    if (!ALLOWED_IMAGE_CONTENT_TYPES.has(payload.contentType)) {
+      throw new BadRequestException('Unsupported image type for direct upload');
     }
 
     const bucket = process.env.STORAGE_BUCKET;
@@ -24,7 +33,7 @@ export class UploadsService {
 
     const safeFileName = payload.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const objectKey = `complaints/${userId}/${randomUUID()}-${safeFileName}`;
-    const expiresIn = Number(process.env.STORAGE_SIGNED_URL_EXPIRES_SECONDS ?? 900);
+    const expiresIn = this.resolveExpirySeconds();
 
     const uploadUrl = await getSignedUrl(
       this.getClient(region),
@@ -45,7 +54,20 @@ export class UploadsService {
       uploadUrl,
       publicUrl: `${publicBaseUrl.replace(/\/$/, '')}/${objectKey}`,
       expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      method: 'PUT',
+      headers: {
+        'Content-Type': payload.contentType,
+      },
     };
+  }
+
+  private resolveExpirySeconds(): number {
+    const configured = Number(process.env.STORAGE_SIGNED_URL_EXPIRES_SECONDS ?? 900);
+    if (!Number.isFinite(configured)) {
+      return 900;
+    }
+
+    return Math.min(3_600, Math.max(60, Math.floor(configured)));
   }
 
   private getClient(region: string): S3Client {

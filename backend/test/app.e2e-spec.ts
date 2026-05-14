@@ -113,5 +113,6 @@ describe('MyCity API (e2e)', () => {
     expect(healthResponse.body.database).toBe('ok');
     expect(healthResponse.body.redis).toBe('PONG');
     expect(healthResponse.body.queue).toBeDefined();
+    expect(healthResponse.body.notifications).toBeDefined();
   });
 });
