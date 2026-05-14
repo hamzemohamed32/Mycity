@@ -157,6 +157,22 @@ npm run backend:build
 npm run backend:test
 ```
 
+## Kubernetes Baseline
+Baseline Kubernetes manifests now include:
+- [API ConfigMap](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/infra/k8s/api-configmap.yaml)
+- [API Secret Template](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/infra/k8s/api-secret.example.yaml)
+- [API Service](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/infra/k8s/api-service.yaml)
+- [API Deployment](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/infra/k8s/api-deployment.yaml)
+- [Migration Job](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/infra/k8s/api-migrate-job.yaml)
+
+Release guidance:
+- run schema changes before the API rollout
+- keep `DB_SYNC=false` outside local development
+- use health checks on `/api/v1/health`
+- keep all secrets out of the repo and provide them through your runtime secret store
+
+Detailed operational steps are in [docs/release-checklist.md](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/docs/release-checklist.md).
+
 ## Notes
 - Kubernetes manifests now expose PostgreSQL, Redis, JWT, FCM, and storage-related environment variables.
 - The platform remains a modular monolith. This setup does not split services.

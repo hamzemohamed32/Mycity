@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: my-city-api-migrate
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: my-city/api:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - npm
+            - run
+            - backend:migrate
+          envFrom:
+            - configMapRef:
+                name: my-city-api-config
+            - secretRef:
+                name: my-city-api-secrets
