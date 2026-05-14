@@ -1,6 +1,8 @@
+import 'dart:io';
 import '../../../../shared/network/api_client.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
+import 'package:http/http.dart' as http;
 import '../../domain/models/complaint_record.dart';
 
 class ComplaintsRepository {
@@ -52,6 +54,41 @@ class ComplaintsRepository {
     return ComplaintRecord.fromJson(response as Map<String, dynamic>);
   }
 
+  Future<String> uploadComplaintImage({
+    required String token,
+    required String filePath,
+    String? fileName,
+  }) async {
+    final resolvedName = fileName ?? _fileNameFromPath(filePath);
+    final contentType = _contentTypeForFileName(resolvedName);
+
+    final response = await _apiClient.post(
+      '/uploads/sessions',
+      token: token,
+      body: {
+        'fileName': resolvedName,
+        'contentType': contentType,
+      },
+    );
+
+    final session = _UploadSession.fromJson(response as Map<String, dynamic>);
+    final bytes = await File(filePath).readAsBytes();
+    final uploadResponse = await http.put(
+      Uri.parse(session.uploadUrl),
+      headers: session.headers,
+      body: bytes,
+    );
+
+    if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
+      throw ApiException(
+        statusCode: uploadResponse.statusCode,
+        message: 'Image upload failed',
+      );
+    }
+
+    return session.publicUrl;
+  }
+
   Future<void> addSupport({
     required String token,
     required String complaintId,
@@ -89,6 +126,26 @@ class ComplaintsRepository {
       }
 
       try {
+        String? imageUrl = item['imageUrl'] as String?;
+        final localImagePath = item['localImagePath'] as String?;
+
+        if ((imageUrl == null || imageUrl.isEmpty) &&
+            localImagePath != null &&
+            localImagePath.isNotEmpty) {
+          final localFile = File(localImagePath);
+          if (await localFile.exists()) {
+            imageUrl = await uploadComplaintImage(
+              token: token,
+              filePath: localImagePath,
+            );
+          } else {
+            throw ApiException(
+              statusCode: 410,
+              message: 'Queued image file is no longer available on device',
+            );
+          }
+        }
+
         await createComplaint(
           token: token,
           description: (item['description'] ?? '') as String,
@@ -96,7 +153,7 @@ class ComplaintsRepository {
           lat: ((item['lat'] ?? 0) as num).toDouble(),
           lng: ((item['lng'] ?? 0) as num).toDouble(),
           clientRequestId: clientRequestId,
-          imageUrl: item['imageUrl'] as String?,
+          imageUrl: imageUrl,
         );
         await queue.removeByClientRequestId(clientRequestId);
         syncedCount += 1;
@@ -106,5 +163,52 @@ class ComplaintsRepository {
     }
 
     return syncedCount;
+  }
+
+  String _fileNameFromPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final segments = normalized.split('/');
+    final fileName = segments.isEmpty ? 'upload.jpg' : segments.last;
+    return fileName.isEmpty ? 'upload.jpg' : fileName;
+  }
+
+  String _contentTypeForFileName(String fileName) {
+    final normalized = fileName.toLowerCase();
+    if (normalized.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (normalized.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    if (normalized.endsWith('.heic')) {
+      return 'image/heic';
+    }
+    if (normalized.endsWith('.heif')) {
+      return 'image/heif';
+    }
+    return 'image/jpeg';
+  }
+}
+
+class _UploadSession {
+  const _UploadSession({
+    required this.uploadUrl,
+    required this.publicUrl,
+    required this.headers,
+  });
+
+  final String uploadUrl;
+  final String publicUrl;
+  final Map<String, String> headers;
+
+  factory _UploadSession.fromJson(Map<String, dynamic> json) {
+    final rawHeaders = json['headers'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    return _UploadSession(
+      uploadUrl: (json['uploadUrl'] ?? '') as String,
+      publicUrl: (json['publicUrl'] ?? '') as String,
+      headers: rawHeaders.map(
+        (key, value) => MapEntry(key, value.toString()),
+      ),
+    );
   }
 }
