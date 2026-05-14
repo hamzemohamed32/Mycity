@@ -8,6 +8,9 @@ describe('HealthController', () => {
   let redisService: {
     ping: jest.Mock;
   };
+  let notificationsService: {
+    getDeliveryStats: jest.Mock;
+  };
   let dataSource: {
     query: jest.Mock;
   };
@@ -24,6 +27,14 @@ describe('HealthController', () => {
       ping: jest.fn().mockResolvedValue('PONG'),
     };
 
+    notificationsService = {
+      getDeliveryStats: jest.fn().mockResolvedValue({
+        pending: 1,
+        failed: 0,
+        delivered: 2,
+      }),
+    };
+
     dataSource = {
       query: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
     };
@@ -31,22 +42,29 @@ describe('HealthController', () => {
     controller = new HealthController(
       queueService as never,
       redisService as never,
+      notificationsService as never,
       dataSource as never,
     );
   });
 
-  it('returns database, redis, and queue status', async () => {
+  it('returns database, redis, queue, and notification status', async () => {
     const result = await controller.check();
 
     expect(dataSource.query).toHaveBeenCalledWith('SELECT 1');
     expect(redisService.ping).toHaveBeenCalled();
     expect(queueService.getStats).toHaveBeenCalled();
+    expect(notificationsService.getDeliveryStats).toHaveBeenCalled();
     expect(result.status).toBe('ok');
     expect(result.database).toBe('ok');
     expect(result.redis).toBe('PONG');
     expect(result.queue).toEqual({
       pending: 1,
       completed: 2,
+    });
+    expect(result.notifications).toEqual({
+      pending: 1,
+      failed: 0,
+      delivered: 2,
     });
     expect(result.timestamp).toBeDefined();
   });
