@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
+import { NotificationsService } from '../notifications/notifications.service';
 import { QueueService } from '../queue/queue.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -10,6 +11,7 @@ export class HealthController {
   constructor(
     private readonly queueService: QueueService,
     private readonly redisService: RedisService,
+    private readonly notificationsService: NotificationsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -23,6 +25,7 @@ export class HealthController {
       database: 'ok',
       redis: await this.redisService.ping(),
       queue: await this.queueService.getStats(),
+      notifications: await this.notificationsService.getDeliveryStats(),
     };
   }
 }
