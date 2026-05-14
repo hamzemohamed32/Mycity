@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
@@ -22,8 +24,10 @@ class SubmitComplaintScreen extends StatefulWidget {
 
 class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
   final _descriptionController = TextEditingController();
+  final _imagePicker = ImagePicker();
   String _category = 'water';
   bool _isSubmitting = false;
+  XFile? _selectedImage;
 
   @override
   void dispose() {
@@ -48,6 +52,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       'category': _category,
       'lat': -1.286389,
       'lng': 36.817223,
+      if (_selectedImage != null) 'localImagePath': _selectedImage!.path,
       'createdAt': DateTime.now().toIso8601String(),
     });
 
@@ -75,6 +80,15 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      String? imageUrl;
+      if (_selectedImage != null) {
+        imageUrl = await widget.complaintsRepository.uploadComplaintImage(
+          token: token,
+          filePath: _selectedImage!.path,
+          fileName: _selectedImage!.name,
+        );
+      }
+
       await widget.complaintsRepository.createComplaint(
         token: token,
         description: description,
@@ -82,6 +96,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         lat: -1.286389,
         lng: 36.817223,
         clientRequestId: _newClientRequestId(),
+        imageUrl: imageUrl,
       );
 
       if (!mounted) {
@@ -98,6 +113,27 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (file == null || !mounted) {
+        return;
+      }
+
+      setState(() => _selectedImage = file);
+    } catch (_) {
+      _showMessage('Unable to select an image right now.');
+    }
+  }
+
+  void _clearImage() {
+    setState(() => _selectedImage = null);
   }
 
   void _showMessage(String message) {
@@ -141,14 +177,64 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Issue photo', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                if (_selectedImage == null)
+                  OutlinedButton.icon(
+                    onPressed: _isSubmitting ? null : _pickImage,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Choose image'),
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Image.file(
+                          File(_selectedImage!.path),
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _selectedImage!.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _isSubmitting ? null : _clearImage,
+                            child: const Text('Remove'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Captured location', style: TextStyle(fontWeight: FontWeight.w700)),
                 SizedBox(height: 6),
                 Text('Lat: -1.286389, Lng: 36.817223'),
-                SizedBox(height: 12),
-                Text('Direct image upload can be added next on top of the signed upload session endpoint.'),
               ],
             ),
           ),
