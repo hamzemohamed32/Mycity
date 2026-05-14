@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-city-api-config
+data:
+  PORT: "4000"
+  API_PREFIX: "api/v1"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "my_city"
+  DB_SYNC: "false"
+  DB_MIGRATIONS_RUN: "false"
+  NODE_ENV: "production"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_REQUIRED: "true"
+  JWT_AUDIENCE: "my-city-mobile"
+  JWT_ISSUER: "my-city"
+  ENABLE_NOTIFICATION_WORKER: "true"
+  NOTIFICATION_WORKER_INTERVAL_MS: "3000"
+  STORAGE_BUCKET: ""
+  STORAGE_REGION: ""
+  STORAGE_ENDPOINT: ""
+  STORAGE_PUBLIC_BASE_URL: ""
+  STORAGE_FORCE_PATH_STYLE: "false"
+  STORAGE_SIGNED_URL_EXPIRES_SECONDS: "900"

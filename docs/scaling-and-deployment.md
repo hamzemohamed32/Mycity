@@ -14,6 +14,7 @@
 - API tier:
   - stateless NestJS replicas behind a global load balancer
   - separate autoscaling pools for read-heavy traffic and admin traffic if needed
+  - readiness and liveness should use `/api/v1/health`
 - Data tier:
   - PostgreSQL primary for writes
   - read replicas for complaint feeds, map browsing, and dashboards
@@ -55,6 +56,16 @@
 - signed upload sessions for media
 - audit logging for admin actions
 
+## Production Config Surface
+- non-secret runtime config belongs in:
+  - `infra/k8s/api-configmap.yaml`
+- secrets belong in:
+  - `infra/k8s/api-secret.example.yaml`
+- one-off schema changes should run through:
+  - `infra/k8s/api-migrate-job.yaml`
+- traffic entrypoint should target:
+  - `infra/k8s/api-service.yaml`
+
 ## Observability
 - tracing from request to DB call to async job
 - dashboards for:
@@ -78,3 +89,8 @@
 5. offline sync and upload hardening
 6. read replicas, queue workers, search, and analytics separation
 
+## Release Discipline
+- do not roll the deployment before migrations succeed
+- keep `DB_SYNC=false` in every non-local environment
+- treat Redis as required for production startup
+- keep object storage credentials and FCM credentials outside the repo
