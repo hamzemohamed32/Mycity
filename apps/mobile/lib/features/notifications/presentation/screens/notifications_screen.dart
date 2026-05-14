@@ -132,7 +132,7 @@ class _NotificationTile extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700))),
-              Text(time, style: TextStyle(color: Colors.black.withOpacity(0.55))),
+              Text(time, style: TextStyle(color: Colors.black.withValues(alpha: 0.55))),
             ],
           ),
           const SizedBox(height: 8),
