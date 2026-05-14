@@ -26,9 +26,9 @@ ThemeData buildAppTheme() {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: Colors.white,
-      selectedColor: seed.withOpacity(0.14),
+      selectedColor: seed.withValues(alpha: 0.14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-      side: BorderSide(color: seed.withOpacity(0.12)),
+      side: BorderSide(color: seed.withValues(alpha: 0.12)),
       labelStyle: const TextStyle(fontWeight: FontWeight.w600),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -40,7 +40,7 @@ ThemeData buildAppTheme() {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: Colors.black.withOpacity(0.05)),
+        borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.05)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
