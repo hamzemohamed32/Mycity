@@ -57,7 +57,13 @@ describe('AuthService', () => {
     });
 
     expect(usersService.create).toHaveBeenCalled();
-    expect(result.user).toBe(user);
+    expect(result.user).toMatchObject({
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+    });
+    expect(result.user).not.toHaveProperty('password');
     expect(result.tokens).toEqual({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
