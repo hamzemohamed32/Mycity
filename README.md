@@ -137,6 +137,13 @@ flutter pub get
 flutter run
 ```
 
+The map uses `flutter_map` with OpenStreetMap tiles, so local development does not require Google Maps API keys. For production traffic, use a dedicated tile provider or your own tile server instead of relying on public demo tile servers.
+
+Map stack:
+- Leaflet-style Flutter map client: `flutter_map`
+- Tile source in development: OpenStreetMap raster tiles
+- No platform-specific map SDK setup required
+
 Default API targets:
 - Android emulator: `http://10.0.2.2:4000/api/v1`
 - desktop / iOS simulator: `http://127.0.0.1:4000/api/v1`
