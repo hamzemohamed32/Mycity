@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ class ApiClient {
   ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? _defaultBaseUrl();
 
   final String baseUrl;
+  static const _requestTimeout = Duration(seconds: 20);
 
   static String _defaultBaseUrl() {
     const configured = String.fromEnvironment('API_BASE_URL', defaultValue: '');
@@ -68,8 +70,28 @@ class ApiClient {
   }
 
   Future<dynamic> _send(Future<http.Response> Function() request) async {
-    final response = await request();
-    final payload = response.body.isEmpty ? null : jsonDecode(response.body);
+    late final http.Response response;
+
+    try {
+      response = await request().timeout(_requestTimeout);
+    } on TimeoutException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'The server took too long to respond.',
+      );
+    } on SocketException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Check your internet connection and try again.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        statusCode: 0,
+        message: 'Unable to reach the server.',
+      );
+    }
+
+    final payload = _decodePayload(response.body);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return payload;
@@ -79,6 +101,18 @@ class ApiClient {
       statusCode: response.statusCode,
       message: _extractMessage(payload),
     );
+  }
+
+  dynamic _decodePayload(String body) {
+    if (body.isEmpty) {
+      return null;
+    }
+
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      return body;
+    }
   }
 
   Uri _buildUri(String path, Map<String, dynamic>? queryParameters) {
@@ -102,6 +136,10 @@ class ApiClient {
   }
 
   String _extractMessage(dynamic payload) {
+    if (payload is String && payload.trim().isNotEmpty) {
+      return payload.trim();
+    }
+
     if (payload is Map<String, dynamic>) {
       final error = payload['error'];
       if (error is String && error.isNotEmpty) {
