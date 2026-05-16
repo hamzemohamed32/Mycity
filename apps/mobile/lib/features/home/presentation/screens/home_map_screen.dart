@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
 import '../../../complaints/data/repositories/complaints_repository.dart';
@@ -184,28 +185,47 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                      child: GoogleMap(
-                        initialCameraPosition: CameraPosition(
-                          target: initialTarget,
-                          zoom: 13,
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: initialTarget,
+                          initialZoom: 13,
                         ),
-                        myLocationEnabled: true,
-                        zoomControlsEnabled: false,
-                        markers: complaints
-                            .map(
-                              (complaint) => Marker(
-                                markerId: MarkerId(complaint.id),
-                                position: LatLng(complaint.lat, complaint.lng),
-                                infoWindow: InfoWindow(
-                                  title: complaint.title,
-                                  snippet: complaint.districtName ?? complaint.statusLabel,
-                                ),
-                                onTap: () {
-                                  setState(() => _selectedComplaintId = complaint.id);
-                                },
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.hamzemohamed.mycity',
+                            maxNativeZoom: 19,
+                          ),
+                          MarkerLayer(
+                            markers: complaints
+                                .map(
+                                  (complaint) => Marker(
+                                    point: LatLng(complaint.lat, complaint.lng),
+                                    width: 48,
+                                    height: 48,
+                                    child: IconButton.filled(
+                                      tooltip: complaint.title,
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0E7C66),
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      icon: const Icon(Icons.place),
+                                      onPressed: () {
+                                        setState(() => _selectedComplaintId = complaint.id);
+                                      },
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          const RichAttributionWidget(
+                            attributions: [
+                              TextSourceAttribution(
+                                'OpenStreetMap contributors',
                               ),
-                            )
-                            .toSet(),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                     if (selectedComplaint != null)
