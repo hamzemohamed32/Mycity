@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
 import '../../../complaints/data/repositories/complaints_repository.dart';
@@ -41,11 +42,23 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
   Future<List<ComplaintRecord>> _refreshComplaints() async {
     final token = widget.sessionController.accessToken!;
-    final syncedCount = await widget.complaintsRepository.syncQueuedComplaints(
-      token: token,
-      queue: widget.offlineQueue,
-    );
-    final complaints = await widget.complaintsRepository.listComplaints(token);
+    late final int syncedCount;
+    late final List<ComplaintRecord> complaints;
+
+    try {
+      syncedCount = await widget.complaintsRepository.syncQueuedComplaints(
+        token: token,
+        queue: widget.offlineQueue,
+      );
+      complaints = await widget.complaintsRepository.listComplaints(token);
+    } on ApiException catch (error) {
+      if (error.statusCode == 401) {
+        await widget.sessionController.clear();
+        return const <ComplaintRecord>[];
+      }
+
+      rethrow;
+    }
 
     if (complaints.isNotEmpty) {
       _selectedComplaintId ??= complaints.first.id;
@@ -134,9 +147,31 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
         if (snapshot.hasError) {
           return Center(
-            child: FilledButton(
-              onPressed: _reloadComplaints,
-              child: const Text('Reload map'),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.map_outlined, size: 40, color: Color(0xFF0E7C66)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Map data could not load',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _friendlyLoadError(snapshot.error),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _reloadComplaints,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reload map'),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -307,5 +342,19 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     }
 
     return complaints.first;
+  }
+
+  String _friendlyLoadError(Object? error) {
+    final message = error?.toString() ?? '';
+
+    if (message.contains(':')) {
+      return message.split(':').last.trim();
+    }
+
+    if (message.trim().isNotEmpty) {
+      return message.trim();
+    }
+
+    return 'Check that the backend, PostgreSQL, and Redis are running, then try again.';
   }
 }

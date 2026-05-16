@@ -6,6 +6,9 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { User } from '../users/entities/user.entity';
 
+type AuthUserResponse = Omit<User, 'password' | 'hashPassword'>;
+type AuthResponse = { user: AuthUserResponse; tokens: Record<string, string> };
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -13,15 +16,15 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(payload: RegisterDto): Promise<{ user: User; tokens: Record<string, string> }> {
+  async register(payload: RegisterDto): Promise<AuthResponse> {
     const user = await this.usersService.create(payload);
     return {
-      user,
+      user: this.toAuthUserResponse(user),
       tokens: await this.issueTokens(user),
     };
   }
 
-  async login(payload: LoginDto): Promise<{ user: User; tokens: Record<string, string> }> {
+  async login(payload: LoginDto): Promise<AuthResponse> {
     const user = await this.usersService.findByEmailOrPhone(payload.email, payload.phone, true);
 
     if (!user || !compareSync(payload.password, user.password)) {
@@ -29,7 +32,7 @@ export class AuthService {
     }
 
     return {
-      user,
+      user: this.toAuthUserResponse(user),
       tokens: await this.issueTokens(user),
     };
   }
@@ -69,5 +72,10 @@ export class AuthService {
     ]);
 
     return { accessToken, refreshToken };
+  }
+
+  private toAuthUserResponse(user: User): AuthUserResponse {
+    const { password: _password, hashPassword: _hashPassword, ...safeUser } = user;
+    return safeUser;
   }
 }
