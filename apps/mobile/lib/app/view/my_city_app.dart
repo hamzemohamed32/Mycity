@@ -63,6 +63,7 @@ class _MyCityAppState extends State<MyCityApp> {
               return AdminDashboardScreen(
                 sessionController: _sessionController,
                 complaintsRepository: _complaintsRepository,
+                authRepository: _authRepository,
               );
             }
 
@@ -71,6 +72,7 @@ class _MyCityAppState extends State<MyCityApp> {
               complaintsRepository: _complaintsRepository,
               notificationsRepository: _notificationsRepository,
               offlineQueue: _offlineComplaintQueue,
+              authRepository: _authRepository,
             );
           }
 

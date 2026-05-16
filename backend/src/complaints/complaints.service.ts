@@ -121,6 +121,13 @@ export class ComplaintsService {
     const complaint = await this.findOne(id);
     complaint.status = payload.status;
     complaint.assignedAdminId = payload.assignedAdminId ?? complaint.assignedAdminId;
+    if (payload.note?.trim()) {
+      complaint.metadata = {
+        ...(complaint.metadata ?? {}),
+        lastAdminNote: payload.note.trim(),
+        lastAdminNoteAt: new Date().toISOString(),
+      };
+    }
     const saved = await this.complaintsRepository.save(complaint);
 
     await this.redisService.del(complaintDetailCacheKey(id));

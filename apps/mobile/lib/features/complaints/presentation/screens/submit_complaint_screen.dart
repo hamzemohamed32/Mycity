@@ -1,6 +1,8 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
@@ -29,6 +31,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
   bool _isSubmitting = false;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
+  LatLng _selectedLocation = const LatLng(-1.286389, 36.817223);
 
   @override
   void dispose() {
@@ -51,9 +54,10 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       'clientRequestId': _newClientRequestId(),
       'description': description,
       'category': _category,
-      'lat': -1.286389,
-      'lng': 36.817223,
-      if (_selectedImage != null) 'localImagePath': _selectedImage!.path,
+      'lat': _selectedLocation.latitude,
+      'lng': _selectedLocation.longitude,
+      if (!kIsWeb && _selectedImage != null)
+        'localImagePath': _selectedImage!.path,
       'createdAt': DateTime.now().toIso8601String(),
     });
 
@@ -94,8 +98,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         token: token,
         description: description,
         category: _category,
-        lat: -1.286389,
-        lng: 36.817223,
+        lat: _selectedLocation.latitude,
+        lng: _selectedLocation.longitude,
         clientRequestId: _newClientRequestId(),
         imageUrl: imageUrl,
       );
@@ -104,7 +108,17 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         return;
       }
 
-      Navigator.of(context).pop(true);
+      final reportAnother = await _showSuccessDialog();
+      if (!mounted) {
+        return;
+      }
+
+      if (reportAnother == true) {
+        _descriptionController.clear();
+        _clearImage();
+      } else {
+        Navigator.of(context).pop(true);
+      }
     } on ApiException catch (error) {
       _showMessage(error.message);
     } catch (_) {
@@ -146,6 +160,27 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       _selectedImage = null;
       _selectedImageBytes = null;
     });
+  }
+
+  Future<bool?> _showSuccessDialog() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report submitted'),
+        content:
+            const Text('The city team can now review and update this issue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Report another'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('View map'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMessage(String message) {
@@ -243,13 +278,54 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Captured location',
+                const Text('Issue location',
                     style: TextStyle(fontWeight: FontWeight.w700)),
-                SizedBox(height: 6),
-                Text('Lat: -1.286389, Lng: 36.817223'),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 220,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: FlutterMap(
+                      options: MapOptions(
+                        initialCenter: _selectedLocation,
+                        initialZoom: 14,
+                        onTap: (_, point) {
+                          setState(() => _selectedLocation = point);
+                        },
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.hamzemohamed.mycity',
+                          maxNativeZoom: 19,
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _selectedLocation,
+                              width: 48,
+                              height: 48,
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Color(0xFF0E7C66),
+                                size: 42,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Lat: ${_selectedLocation.latitude.toStringAsFixed(6)}, '
+                  'Lng: ${_selectedLocation.longitude.toStringAsFixed(6)}',
+                ),
               ],
             ),
           ),

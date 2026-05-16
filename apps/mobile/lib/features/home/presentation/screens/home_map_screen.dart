@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../complaints/data/repositories/complaints_repository.dart';
 import '../../../complaints/domain/models/complaint_record.dart';
 import '../../../complaints/presentation/screens/complaint_detail_screen.dart';
@@ -18,12 +19,14 @@ class HomeMapScreen extends StatefulWidget {
     required this.complaintsRepository,
     required this.notificationsRepository,
     required this.offlineQueue,
+    required this.authRepository,
   });
 
   final SessionController sessionController;
   final ComplaintsRepository complaintsRepository;
   final NotificationsRepository notificationsRepository;
   final OfflineComplaintQueue offlineQueue;
+  final AuthRepository authRepository;
 
   @override
   State<HomeMapScreen> createState() => _HomeMapScreenState();
@@ -40,7 +43,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     _complaintsFuture = _refreshComplaints();
   }
 
-  Future<List<ComplaintRecord>> _refreshComplaints() async {
+  Future<List<ComplaintRecord>> _refreshComplaints(
+      {bool canRefresh = true}) async {
     final token = widget.sessionController.accessToken!;
     late final int syncedCount;
     late final List<ComplaintRecord> complaints;
@@ -53,7 +57,11 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       complaints = await widget.complaintsRepository.listComplaints(token);
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
-        await widget.sessionController.clear();
+        final refreshed = canRefresh && await _refreshSession();
+        if (refreshed) {
+          return _refreshComplaints(canRefresh: false);
+        }
+
         return const <ComplaintRecord>[];
       }
 
@@ -71,6 +79,32 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     }
 
     return complaints;
+  }
+
+  Future<bool> _refreshSession() async {
+    final refreshToken = widget.sessionController.session?.refreshToken;
+    if (refreshToken == null) {
+      await widget.sessionController.clear();
+      return false;
+    }
+
+    try {
+      final tokens =
+          await widget.authRepository.refresh(refreshToken: refreshToken);
+      if (tokens.accessToken.isEmpty || tokens.refreshToken.isEmpty) {
+        await widget.sessionController.clear();
+        return false;
+      }
+
+      await widget.sessionController.updateTokens(
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      );
+      return true;
+    } on ApiException {
+      await widget.sessionController.clear();
+      return false;
+    }
   }
 
   void _reloadComplaints() {
