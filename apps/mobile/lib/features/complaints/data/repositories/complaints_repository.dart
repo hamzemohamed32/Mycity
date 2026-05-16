@@ -129,11 +129,17 @@ class ComplaintsRepository {
     required String token,
     required String complaintId,
     required String status,
+    String? assignedAdminId,
+    String? note,
   }) async {
     final response = await _apiClient.patch(
       '/complaints/$complaintId/status',
       token: token,
-      body: {'status': status},
+      body: {
+        'status': status,
+        if (assignedAdminId != null) 'assignedAdminId': assignedAdminId,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
     );
     return ComplaintRecord.fromJson(response as Map<String, dynamic>);
   }

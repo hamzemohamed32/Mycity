@@ -72,6 +72,28 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
+    final current = _session;
+    if (current == null) {
+      return;
+    }
+
+    final refreshed = AuthSession(
+      userId: current.userId,
+      fullName: current.fullName,
+      email: current.email,
+      phone: current.phone,
+      role: current.role,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+
+    await save(refreshed);
+  }
+
   Future<void> clear() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_accessTokenKey);

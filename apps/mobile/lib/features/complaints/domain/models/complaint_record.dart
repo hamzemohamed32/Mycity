@@ -12,6 +12,8 @@ class ComplaintRecord {
     this.imageUrl,
     this.clientRequestId,
     this.createdByName,
+    this.assignedAdminId,
+    this.adminNote,
     this.comments = const <ComplaintComment>[],
   });
 
@@ -23,6 +25,8 @@ class ComplaintRecord {
   final String? imageUrl;
   final String? clientRequestId;
   final String? createdByName;
+  final String? assignedAdminId;
+  final String? adminNote;
   final int supportCount;
   final double lat;
   final double lng;
@@ -47,6 +51,7 @@ class ComplaintRecord {
         location['coordinates'] as List<dynamic>? ?? const <dynamic>[];
     final comments = json['comments'] as List<dynamic>? ?? const <dynamic>[];
     final createdBy = json['createdBy'] as Map<String, dynamic>?;
+    final metadata = json['metadata'] as Map<String, dynamic>?;
 
     return ComplaintRecord(
       id: (json['id'] ?? '') as String,
@@ -62,6 +67,8 @@ class ComplaintRecord {
       createdByName: createdBy == null
           ? null
           : (createdBy['fullName'] ?? createdBy['email']) as String?,
+      assignedAdminId: json['assignedAdminId'] as String?,
+      adminNote: metadata == null ? null : metadata['lastAdminNote'] as String?,
       supportCount: (json['supportCount'] ?? 0) as int,
       lat: coordinates.length > 1 ? (coordinates[1] as num).toDouble() : 0,
       lng: coordinates.isNotEmpty ? (coordinates[0] as num).toDouble() : 0,

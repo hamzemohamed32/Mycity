@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../complaints/data/repositories/complaints_repository.dart';
 import '../../../complaints/domain/models/complaint_record.dart';
 
@@ -9,10 +10,12 @@ class AdminDashboardScreen extends StatefulWidget {
     super.key,
     required this.sessionController,
     required this.complaintsRepository,
+    required this.authRepository,
   });
 
   final SessionController sessionController;
   final ComplaintsRepository complaintsRepository;
+  final AuthRepository authRepository;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -21,6 +24,8 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late Future<List<ComplaintRecord>> _complaintsFuture;
   String _statusFilter = 'all';
+  String _categoryFilter = 'all';
+  String _districtFilter = 'all';
   bool _isSaving = false;
 
   @override
@@ -29,7 +34,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _complaintsFuture = _loadComplaints();
   }
 
-  Future<List<ComplaintRecord>> _loadComplaints() async {
+  Future<List<ComplaintRecord>> _loadComplaints(
+      {bool canRefresh = true}) async {
     final token = widget.sessionController.accessToken;
     if (token == null) {
       return const <ComplaintRecord>[];
@@ -39,11 +45,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       return widget.complaintsRepository.listComplaints(token);
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
-        await widget.sessionController.clear();
+        final refreshed = canRefresh && await _refreshSession();
+        if (refreshed) {
+          return _loadComplaints(canRefresh: false);
+        }
+
         return const <ComplaintRecord>[];
       }
 
       rethrow;
+    }
+  }
+
+  Future<bool> _refreshSession() async {
+    final refreshToken = widget.sessionController.session?.refreshToken;
+    if (refreshToken == null) {
+      await widget.sessionController.clear();
+      return false;
+    }
+
+    try {
+      final tokens =
+          await widget.authRepository.refresh(refreshToken: refreshToken);
+      if (tokens.accessToken.isEmpty || tokens.refreshToken.isEmpty) {
+        await widget.sessionController.clear();
+        return false;
+      }
+
+      await widget.sessionController.updateTokens(
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      );
+      return true;
+    } on ApiException {
+      await widget.sessionController.clear();
+      return false;
     }
   }
 
@@ -53,7 +89,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
-  Future<void> _updateStatus(ComplaintRecord complaint, String status) async {
+  Future<void> _updateStatus(
+    ComplaintRecord complaint,
+    String status, {
+    String? assignedAdminId,
+    String? note,
+    bool canRefresh = true,
+  }) async {
     final token = widget.sessionController.accessToken;
     if (token == null) {
       await widget.sessionController.clear();
@@ -67,12 +109,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         token: token,
         complaintId: complaint.id,
         status: status,
+        assignedAdminId: assignedAdminId,
+        note: note,
       );
       _showMessage('Status updated.');
       _reload();
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
-        await widget.sessionController.clear();
+        final refreshed = canRefresh && await _refreshSession();
+        if (refreshed) {
+          await _updateStatus(
+            complaint,
+            status,
+            assignedAdminId: assignedAdminId,
+            note: note,
+            canRefresh: false,
+          );
+        }
         return;
       }
 
@@ -87,6 +140,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _openComplaintManager(ComplaintRecord complaint) async {
+    final result = await showModalBottomSheet<_AdminComplaintAction>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _AdminComplaintSheet(
+        complaint: complaint,
+        currentAdminId: widget.sessionController.session?.userId,
+      ),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    await _updateStatus(
+      complaint,
+      result.status,
+      assignedAdminId: result.assignToMe
+          ? widget.sessionController.session?.userId
+          : complaint.assignedAdminId,
+      note: result.note,
     );
   }
 
@@ -140,6 +218,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
           final complaints = snapshot.data ?? const <ComplaintRecord>[];
           final filtered = _filteredComplaints(complaints);
+          final categories =
+              _filterValues(complaints.map((item) => item.category));
+          final districts = _filterValues(
+            complaints.map((item) => item.districtName ?? 'Unassigned'),
+          );
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -181,6 +264,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _FilterMenu(
+                      label: 'Category',
+                      value: _categoryFilter,
+                      values: categories,
+                      onChanged: (value) =>
+                          setState(() => _categoryFilter = value),
+                    ),
+                    _FilterMenu(
+                      label: 'District',
+                      value: _districtFilter,
+                      values: districts,
+                      onChanged: (value) =>
+                          setState(() => _districtFilter = value),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 if (filtered.isEmpty)
                   const Padding(
                     padding: EdgeInsets.only(top: 48),
@@ -194,6 +298,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: _ComplaintManagementTile(
                         complaint: complaint,
                         isSaving: _isSaving,
+                        onOpen: () => _openComplaintManager(complaint),
                         onStatusSelected: (status) =>
                             _updateStatus(complaint, status),
                       ),
@@ -208,13 +313,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   List<ComplaintRecord> _filteredComplaints(List<ComplaintRecord> complaints) {
-    if (_statusFilter == 'all') {
-      return complaints;
-    }
+    return complaints.where((complaint) {
+      final statusMatches =
+          _statusFilter == 'all' || complaint.status == _statusFilter;
+      final categoryMatches =
+          _categoryFilter == 'all' || complaint.category == _categoryFilter;
+      final district = complaint.districtName ?? 'Unassigned';
+      final districtMatches =
+          _districtFilter == 'all' || district == _districtFilter;
 
-    return complaints
-        .where((complaint) => complaint.status == _statusFilter)
-        .toList();
+      return statusMatches && categoryMatches && districtMatches;
+    }).toList();
+  }
+
+  List<String> _filterValues(Iterable<String> values) {
+    final unique =
+        values.where((value) => value.trim().isNotEmpty).toSet().toList();
+    unique.sort();
+    return ['all', ...unique];
   }
 
   String get _roleTitle {
@@ -324,90 +440,140 @@ class _StatChip extends StatelessWidget {
   }
 }
 
+class _FilterMenu extends StatelessWidget {
+  const _FilterMenu({
+    required this.label,
+    required this.value,
+    required this.values,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final List<String> values;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownMenu<String>(
+      label: Text(label),
+      initialSelection: value,
+      dropdownMenuEntries: values
+          .map(
+            (item) => DropdownMenuEntry(
+              value: item,
+              label: item == 'all' ? 'All' : item,
+            ),
+          )
+          .toList(),
+      onSelected: (selected) {
+        if (selected != null) {
+          onChanged(selected);
+        }
+      },
+    );
+  }
+}
+
 class _ComplaintManagementTile extends StatelessWidget {
   const _ComplaintManagementTile({
     required this.complaint,
     required this.isSaving,
+    required this.onOpen,
     required this.onStatusSelected,
   });
 
   final ComplaintRecord complaint;
   final bool isSaving;
+  final VoidCallback onOpen;
   final ValueChanged<String> onStatusSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E6E3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE0E6E3)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFE3F1EC),
-                child: Icon(Icons.place_outlined, color: Color(0xFF0E7C66)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(complaint.title,
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${complaint.districtName ?? 'Unassigned'} / ${complaint.supportCount} supporters',
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Color(0xFFE3F1EC),
+                    child: Icon(Icons.place_outlined, color: Color(0xFF0E7C66)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(complaint.title,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${complaint.districtName ?? 'Unassigned'} / ${complaint.supportCount} supporters',
+                        ),
+                        if (complaint.createdByName != null) ...[
+                          const SizedBox(height: 4),
+                          Text('Reported by ${complaint.createdByName}'),
+                        ],
+                      ],
                     ),
-                    if (complaint.createdByName != null) ...[
-                      const SizedBox(height: 4),
-                      Text('Reported by ${complaint.createdByName}'),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(complaint.description),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Chip(label: Text(complaint.category)),
+                  Chip(label: Text(complaint.statusLabel)),
+                  _StatusButton(
+                    label: 'Mark pending',
+                    status: 'pending',
+                    currentStatus: complaint.status,
+                    isSaving: isSaving,
+                    onSelected: onStatusSelected,
+                  ),
+                  _StatusButton(
+                    label: 'Start work',
+                    status: 'in_progress',
+                    currentStatus: complaint.status,
+                    isSaving: isSaving,
+                    onSelected: onStatusSelected,
+                  ),
+                  _StatusButton(
+                    label: 'Resolve',
+                    status: 'resolved',
+                    currentStatus: complaint.status,
+                    isSaving: isSaving,
+                    onSelected: onStatusSelected,
+                  ),
+                  TextButton.icon(
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Manage'),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(complaint.description),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Chip(label: Text(complaint.category)),
-              Chip(label: Text(complaint.statusLabel)),
-              _StatusButton(
-                label: 'Mark pending',
-                status: 'pending',
-                currentStatus: complaint.status,
-                isSaving: isSaving,
-                onSelected: onStatusSelected,
-              ),
-              _StatusButton(
-                label: 'Start work',
-                status: 'in_progress',
-                currentStatus: complaint.status,
-                isSaving: isSaving,
-                onSelected: onStatusSelected,
-              ),
-              _StatusButton(
-                label: 'Resolve',
-                status: 'resolved',
-                currentStatus: complaint.status,
-                isSaving: isSaving,
-                onSelected: onStatusSelected,
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -434,6 +600,153 @@ class _StatusButton extends StatelessWidget {
       onPressed:
           isSaving || status == currentStatus ? null : () => onSelected(status),
       child: Text(label),
+    );
+  }
+}
+
+class _AdminComplaintAction {
+  const _AdminComplaintAction({
+    required this.status,
+    required this.assignToMe,
+    required this.note,
+  });
+
+  final String status;
+  final bool assignToMe;
+  final String note;
+}
+
+class _AdminComplaintSheet extends StatefulWidget {
+  const _AdminComplaintSheet({
+    required this.complaint,
+    required this.currentAdminId,
+  });
+
+  final ComplaintRecord complaint;
+  final String? currentAdminId;
+
+  @override
+  State<_AdminComplaintSheet> createState() => _AdminComplaintSheetState();
+}
+
+class _AdminComplaintSheetState extends State<_AdminComplaintSheet> {
+  late String _status;
+  late bool _assignToMe;
+  late final TextEditingController _noteController;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.complaint.status;
+    _assignToMe = widget.currentAdminId != null &&
+        widget.complaint.assignedAdminId == widget.currentAdminId;
+    _noteController =
+        TextEditingController(text: widget.complaint.adminNote ?? '');
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Manage complaint',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(widget.complaint.description),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Chip(label: Text(widget.complaint.category)),
+              Chip(label: Text(widget.complaint.districtName ?? 'Unassigned')),
+              Chip(label: Text('${widget.complaint.supportCount} supporters')),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                value: 'pending',
+                label: Text('Pending'),
+                icon: Icon(Icons.schedule),
+              ),
+              ButtonSegment(
+                value: 'in_progress',
+                label: Text('Active'),
+                icon: Icon(Icons.construction),
+              ),
+              ButtonSegment(
+                value: 'resolved',
+                label: Text('Resolved'),
+                icon: Icon(Icons.check_circle_outline),
+              ),
+            ],
+            selected: {_status},
+            onSelectionChanged: (selection) {
+              setState(() => _status = selection.first);
+            },
+          ),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Assign to me'),
+            value: _assignToMe,
+            onChanged: widget.currentAdminId == null
+                ? null
+                : (value) => setState(() => _assignToMe = value ?? false),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _noteController,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Admin note',
+              hintText: 'Add the latest action, blocker, or decision.',
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop(
+                _AdminComplaintAction(
+                  status: _status,
+                  assignToMe: _assignToMe,
+                  note: _noteController.text,
+                ),
+              );
+            },
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Save changes'),
+          ),
+        ],
+      ),
     );
   }
 }
