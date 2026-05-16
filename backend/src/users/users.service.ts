@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 
 @Injectable()
 export class UsersService {
@@ -23,7 +23,7 @@ export class UsersService {
 
     const entity = this.usersRepository.create({
       ...payload,
-      role: payload.role,
+      role: payload.role ?? UserRole.Citizen,
     });
 
     return this.usersRepository.save(entity);
@@ -37,11 +37,7 @@ export class UsersService {
     return user;
   }
 
-  async findByEmailOrPhone(
-    email?: string,
-    phone?: string,
-    includePassword = false,
-  ): Promise<User | null> {
+  async findByEmailOrPhone(email?: string, phone?: string, includePassword = false): Promise<User | null> {
     if (!email && !phone) {
       return null;
     }
@@ -58,4 +54,3 @@ export class UsersService {
     return query.getOne();
   }
 }
-

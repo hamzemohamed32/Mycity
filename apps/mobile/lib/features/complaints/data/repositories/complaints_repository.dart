@@ -1,8 +1,9 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import '../../../../shared/network/api_client.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
-import 'package:http/http.dart' as http;
 import '../../domain/models/complaint_record.dart';
 
 class ComplaintsRepository {
@@ -23,7 +24,8 @@ class ComplaintsRepository {
     required String token,
     required String complaintId,
   }) async {
-    final response = await _apiClient.get('/complaints/$complaintId', token: token);
+    final response =
+        await _apiClient.get('/complaints/$complaintId', token: token);
     return ComplaintRecord.fromJson(response as Map<String, dynamic>);
   }
 
@@ -60,19 +62,30 @@ class ComplaintsRepository {
     String? fileName,
   }) async {
     final resolvedName = fileName ?? _fileNameFromPath(filePath);
-    final contentType = _contentTypeForFileName(resolvedName);
+    final bytes = await File(filePath).readAsBytes();
+    return uploadComplaintImageBytes(
+      token: token,
+      bytes: bytes,
+      fileName: resolvedName,
+    );
+  }
 
+  Future<String> uploadComplaintImageBytes({
+    required String token,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final contentType = _contentTypeForFileName(fileName);
     final response = await _apiClient.post(
       '/uploads/sessions',
       token: token,
       body: {
-        'fileName': resolvedName,
+        'fileName': fileName,
         'contentType': contentType,
       },
     );
 
     final session = _UploadSession.fromJson(response as Map<String, dynamic>);
-    final bytes = await File(filePath).readAsBytes();
     final uploadResponse = await http.put(
       Uri.parse(session.uploadUrl),
       headers: session.headers,
@@ -112,6 +125,19 @@ class ComplaintsRepository {
     );
   }
 
+  Future<ComplaintRecord> updateStatus({
+    required String token,
+    required String complaintId,
+    required String status,
+  }) async {
+    final response = await _apiClient.patch(
+      '/complaints/$complaintId/status',
+      token: token,
+      body: {'status': status},
+    );
+    return ComplaintRecord.fromJson(response as Map<String, dynamic>);
+  }
+
   Future<int> syncQueuedComplaints({
     required String token,
     required OfflineComplaintQueue queue,
@@ -132,6 +158,13 @@ class ComplaintsRepository {
         if ((imageUrl == null || imageUrl.isEmpty) &&
             localImagePath != null &&
             localImagePath.isNotEmpty) {
+          if (kIsWeb) {
+            throw ApiException(
+              statusCode: 0,
+              message: 'Queued image sync is not available on web.',
+            );
+          }
+
           final localFile = File(localImagePath);
           if (await localFile.exists()) {
             imageUrl = await uploadComplaintImage(
@@ -202,7 +235,8 @@ class _UploadSession {
   final Map<String, String> headers;
 
   factory _UploadSession.fromJson(Map<String, dynamic> json) {
-    final rawHeaders = json['headers'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    final rawHeaders =
+        json['headers'] as Map<String, dynamic>? ?? const <String, dynamic>{};
     return _UploadSession(
       uploadUrl: (json['uploadUrl'] ?? '') as String,
       publicUrl: (json['publicUrl'] ?? '') as String,

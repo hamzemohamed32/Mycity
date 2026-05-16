@@ -48,6 +48,14 @@ That stack includes:
 
 pgAdmin bootstrap credentials come from [infra/docker/compose.env](C:/Users/xamse/OneDrive/Desktop/hamze.apps/my-city/infra/docker/compose.env).
 
+Local app testing:
+- web app: `http://localhost:8082`
+- citizen login: `citizen@mycity.local` / `Password123!`
+- district admin login: `admin@mycity.local` / `Password123!`
+- Mayor login: `mayor@mycity.local` / `Password123!`
+
+Citizen accounts open the map and report flow. District admins and the Mayor open the management dashboard for complaint review and status updates.
+
 Detached mode:
 ```bash
 npm run infra:up
