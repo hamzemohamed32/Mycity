@@ -123,10 +123,12 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       body: pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.map_outlined), label: 'Map'),
-          NavigationDestination(icon: Icon(Icons.notifications_none), label: 'Updates'),
+          NavigationDestination(
+              icon: Icon(Icons.notifications_none), label: 'Updates'),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -152,7 +154,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.map_outlined, size: 40, color: Color(0xFF0E7C66)),
+                  const Icon(Icons.map_outlined,
+                      size: 40, color: Color(0xFF0E7C66)),
                   const SizedBox(height: 12),
                   Text(
                     'Map data could not load',
@@ -169,6 +172,12 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                     onPressed: _reloadComplaints,
                     icon: const Icon(Icons.refresh),
                     label: const Text('Reload map'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => widget.sessionController.clear(),
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Sign out'),
                   ),
                 ],
               ),
@@ -194,7 +203,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('City Service Map', style: Theme.of(context).textTheme.headlineMedium),
+                          Text('City Service Map',
+                              style:
+                                  Theme.of(context).textTheme.headlineMedium),
                           const SizedBox(height: 6),
                           Text(
                             'Signed in as ${widget.sessionController.session?.fullName ?? 'Citizen'}.',
@@ -219,7 +230,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                 child: Stack(
                   children: [
                     ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(28)),
                       child: FlutterMap(
                         options: MapOptions(
                           initialCenter: initialTarget,
@@ -227,7 +239,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                         ),
                         children: [
                           TileLayer(
-                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                             userAgentPackageName: 'com.hamzemohamed.mycity',
                             maxNativeZoom: 19,
                           ),
@@ -241,12 +254,14 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                                     child: IconButton.filled(
                                       tooltip: complaint.title,
                                       style: IconButton.styleFrom(
-                                        backgroundColor: const Color(0xFF0E7C66),
+                                        backgroundColor:
+                                            const Color(0xFF0E7C66),
                                         foregroundColor: Colors.white,
                                       ),
                                       icon: const Icon(Icons.place),
                                       onPressed: () {
-                                        setState(() => _selectedComplaintId = complaint.id);
+                                        setState(() => _selectedComplaintId =
+                                            complaint.id);
                                       },
                                     ),
                                   ),
@@ -280,17 +295,20 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                                 children: [
                                   const CircleAvatar(
                                     backgroundColor: Color(0xFFE3F1EC),
-                                    child: Icon(Icons.place_outlined, color: Color(0xFF0E7C66)),
+                                    child: Icon(Icons.place_outlined,
+                                        color: Color(0xFF0E7C66)),
                                   ),
                                   const SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
                                           selectedComplaint.title,
-                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700),
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
@@ -317,7 +335,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(22),
                           ),
-                          child: const Text('No complaints yet. Submit the first report from this account.'),
+                          child: const Text(
+                              'No complaints yet. Submit the first report from this account.'),
                         ),
                       ),
                   ],

@@ -39,6 +39,14 @@ async function seed(): Promise<void> {
     districtId: centralDistrict.id,
   });
 
+  await ensureUser(userRepository, {
+    fullName: 'Mayor Demo',
+    email: 'mayor@mycity.local',
+    password: 'Password123!',
+    role: UserRole.CityAdmin,
+    districtId: null,
+  });
+
   await ensureComplaint(complaintRepository, {
     description: 'Water leak near the school entrance',
     category: ComplaintCategory.Water,
@@ -93,7 +101,9 @@ async function ensureUser(
     throw new Error('Seed users require an email');
   }
 
-  const existing = await repository.findOne({ where: { email: payload.email } });
+  const existing = await repository.findOne({
+    where: { email: payload.email },
+  });
   if (existing) {
     existing.fullName = payload.fullName;
     existing.role = payload.role;

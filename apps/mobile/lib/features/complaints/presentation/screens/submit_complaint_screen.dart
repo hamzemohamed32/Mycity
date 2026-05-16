@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../shared/network/api_exception.dart';
@@ -28,6 +28,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
   String _category = 'water';
   bool _isSubmitting = false;
   XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
 
   @override
   void dispose() {
@@ -81,10 +82,10 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
 
     try {
       String? imageUrl;
-      if (_selectedImage != null) {
-        imageUrl = await widget.complaintsRepository.uploadComplaintImage(
+      if (_selectedImage != null && _selectedImageBytes != null) {
+        imageUrl = await widget.complaintsRepository.uploadComplaintImageBytes(
           token: token,
-          filePath: _selectedImage!.path,
+          bytes: _selectedImageBytes!,
           fileName: _selectedImage!.name,
         );
       }
@@ -126,14 +127,25 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         return;
       }
 
-      setState(() => _selectedImage = file);
+      final bytes = await file.readAsBytes();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedImage = file;
+        _selectedImageBytes = bytes;
+      });
     } catch (_) {
       _showMessage('Unable to select an image right now.');
     }
   }
 
   void _clearImage() {
-    setState(() => _selectedImage = null);
+    setState(() {
+      _selectedImage = null;
+      _selectedImageBytes = null;
+    });
   }
 
   void _showMessage(String message) {
@@ -167,7 +179,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             maxLines: 6,
             decoration: const InputDecoration(
               labelText: 'Describe the issue',
-              hintText: 'Example: Water main leak causing flooding near the school entrance.',
+              hintText:
+                  'Example: Water main leak causing flooding near the school entrance.',
             ),
           ),
           const SizedBox(height: 16),
@@ -180,7 +193,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Issue photo', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text('Issue photo',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 if (_selectedImage == null)
                   OutlinedButton.icon(
@@ -194,8 +208,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(18),
-                        child: Image.file(
-                          File(_selectedImage!.path),
+                        child: Image.memory(
+                          _selectedImageBytes!,
                           height: 180,
                           width: double.infinity,
                           fit: BoxFit.cover,
@@ -232,7 +246,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Captured location', style: TextStyle(fontWeight: FontWeight.w700)),
+                Text('Captured location',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
                 SizedBox(height: 6),
                 Text('Lat: -1.286389, Lng: 36.817223'),
               ],

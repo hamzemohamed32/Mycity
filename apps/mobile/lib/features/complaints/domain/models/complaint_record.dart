@@ -11,6 +11,7 @@ class ComplaintRecord {
     this.districtName,
     this.imageUrl,
     this.clientRequestId,
+    this.createdByName,
     this.comments = const <ComplaintComment>[],
   });
 
@@ -21,6 +22,7 @@ class ComplaintRecord {
   final String? districtName;
   final String? imageUrl;
   final String? clientRequestId;
+  final String? createdByName;
   final int supportCount;
   final double lat;
   final double lng;
@@ -39,25 +41,35 @@ class ComplaintRecord {
   String get statusLabel => status.replaceAll('_', ' ');
 
   factory ComplaintRecord.fromJson(Map<String, dynamic> json) {
-    final location = json['location'] as Map<String, dynamic>? ?? <String, dynamic>{};
-    final coordinates = location['coordinates'] as List<dynamic>? ?? const <dynamic>[];
+    final location =
+        json['location'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final coordinates =
+        location['coordinates'] as List<dynamic>? ?? const <dynamic>[];
     final comments = json['comments'] as List<dynamic>? ?? const <dynamic>[];
+    final createdBy = json['createdBy'] as Map<String, dynamic>?;
 
     return ComplaintRecord(
       id: (json['id'] ?? '') as String,
       description: (json['description'] ?? '') as String,
       category: (json['category'] ?? 'other') as String,
       status: (json['status'] ?? 'pending') as String,
-      districtName: (json['district'] as Map<String, dynamic>?)?['name'] as String?,
+      districtName:
+          (json['district'] as Map<String, dynamic>?)?['name'] as String?,
       imageUrl: json['imageUrl'] as String?,
       clientRequestId: json['clientRequestId'] as String? ??
-          (json['metadata'] as Map<String, dynamic>?)?['clientRequestId'] as String?,
+          (json['metadata'] as Map<String, dynamic>?)?['clientRequestId']
+              as String?,
+      createdByName: createdBy == null
+          ? null
+          : (createdBy['fullName'] ?? createdBy['email']) as String?,
       supportCount: (json['supportCount'] ?? 0) as int,
       lat: coordinates.length > 1 ? (coordinates[1] as num).toDouble() : 0,
       lng: coordinates.isNotEmpty ? (coordinates[0] as num).toDouble() : 0,
-      createdAt: DateTime.tryParse((json['createdAt'] ?? '') as String) ?? DateTime.now(),
+      createdAt: DateTime.tryParse((json['createdAt'] ?? '') as String) ??
+          DateTime.now(),
       comments: comments
-          .map((item) => ComplaintComment.fromJson(item as Map<String, dynamic>))
+          .map(
+              (item) => ComplaintComment.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -75,11 +87,13 @@ class ComplaintComment {
   final DateTime createdAt;
 
   factory ComplaintComment.fromJson(Map<String, dynamic> json) {
-    final author = json['author'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final author =
+        json['author'] as Map<String, dynamic>? ?? <String, dynamic>{};
     return ComplaintComment(
       authorName: (author['fullName'] ?? 'Citizen') as String,
       body: (json['body'] ?? '') as String,
-      createdAt: DateTime.tryParse((json['createdAt'] ?? '') as String) ?? DateTime.now(),
+      createdAt: DateTime.tryParse((json['createdAt'] ?? '') as String) ??
+          DateTime.now(),
     );
   }
 }

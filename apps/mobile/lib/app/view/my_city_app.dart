@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../features/auth/data/repositories/auth_repository.dart';
 import '../../features/auth/presentation/screens/sign_in_screen.dart';
+import '../../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../../features/complaints/data/repositories/complaints_repository.dart';
 import '../../features/home/presentation/screens/home_map_screen.dart';
 import '../../features/notifications/data/repositories/notifications_repository.dart';
@@ -58,6 +59,13 @@ class _MyCityAppState extends State<MyCityApp> {
           }
 
           if (_sessionController.isAuthenticated) {
+            if (_sessionController.session?.role != 'citizen') {
+              return AdminDashboardScreen(
+                sessionController: _sessionController,
+                complaintsRepository: _complaintsRepository,
+              );
+            }
+
             return HomeMapScreen(
               sessionController: _sessionController,
               complaintsRepository: _complaintsRepository,
