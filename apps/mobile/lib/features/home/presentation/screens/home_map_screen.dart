@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../../shared/theme/app_theme.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../complaints/data/repositories/complaints_repository.dart';
 import '../../../complaints/domain/models/complaint_record.dart';
@@ -169,6 +170,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
         onPressed: _openSubmitScreen,
         label: const Text('Report issue'),
         icon: const Icon(Icons.add_location_alt_outlined),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -243,6 +245,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                           const SizedBox(height: 6),
                           Text(
                             'Signed in as ${widget.sessionController.session?.fullName ?? 'Citizen'}.',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -265,7 +268,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                   children: [
                     ClipRRect(
                       borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(28)),
+                          const BorderRadius.vertical(top: Radius.circular(8)),
                       child: FlutterMap(
                         options: MapOptions(
                           initialCenter: initialTarget,
@@ -319,9 +322,10 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                         bottom: 18,
                         child: Material(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(8),
+                          elevation: 2,
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(22),
+                            borderRadius: BorderRadius.circular(8),
                             onTap: () => _openComplaint(selectedComplaint.id),
                             child: Padding(
                               padding: const EdgeInsets.all(18),
@@ -330,7 +334,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                                   const CircleAvatar(
                                     backgroundColor: Color(0xFFE3F1EC),
                                     child: Icon(Icons.place_outlined,
-                                        color: Color(0xFF0E7C66)),
+                                        color: AppColors.civicGreen),
                                   ),
                                   const SizedBox(width: 14),
                                   Expanded(
@@ -367,7 +371,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(22),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.border),
                           ),
                           child: const Text(
                               'No complaints yet. Submit the first report from this account.'),

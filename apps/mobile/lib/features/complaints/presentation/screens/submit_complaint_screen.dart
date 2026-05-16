@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/offline/offline_queue.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../../shared/theme/app_theme.dart';
 import '../../data/repositories/complaints_repository.dart';
 
 class SubmitComplaintScreen extends StatefulWidget {
@@ -223,7 +224,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,7 +244,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(8),
+                        clipBehavior: Clip.antiAlias,
                         child: Image.memory(
                           _selectedImageBytes!,
                           height: 180,
@@ -276,7 +279,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +291,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
                 SizedBox(
                   height: 220,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(8),
                     child: FlutterMap(
                       options: MapOptions(
                         initialCenter: _selectedLocation,

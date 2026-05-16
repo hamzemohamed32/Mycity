@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../../shared/theme/app_theme.dart';
 import '../../data/repositories/auth_repository.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -40,7 +41,9 @@ class _SignInScreenState extends State<SignInScreen> {
     final password = _passwordController.text.trim();
     final fullName = _fullNameController.text.trim();
 
-    if (identifier.isEmpty || password.isEmpty || (_isRegisterMode && fullName.isEmpty)) {
+    if (identifier.isEmpty ||
+        password.isEmpty ||
+        (_isRegisterMode && fullName.isEmpty)) {
       _showMessage('Complete the required fields.');
       return;
     }
@@ -85,67 +88,93 @@ class _SignInScreenState extends State<SignInScreen> {
         : 'Sign in to track issues, submit reports, and receive district updates.';
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE8F6F2), Color(0xFFF6F7F9), Color(0xFFDDECE8)],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('MyCity', style: Theme.of(context).textTheme.headlineMedium),
-                    const SizedBox(height: 12),
-                    Text(subtitle),
-                    const SizedBox(height: 28),
-                    if (_isRegisterMode) ...[
-                      TextField(
-                        controller: _fullNameController,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(labelText: 'Full name'),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _BrandLockup(),
+                  const SizedBox(height: 28),
+                  Text(title,
+                      style: Theme.of(context).textTheme.headlineMedium),
+                  const SizedBox(height: 8),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 24),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          if (_isRegisterMode) ...[
+                            TextField(
+                              controller: _fullNameController,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.person_outline),
+                                labelText: 'Full name',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          TextField(
+                            controller: _identifierController,
+                            textInputAction: TextInputAction.next,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.alternate_email),
+                              labelText: 'Email or phone',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            onSubmitted: (_) => _submit(),
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.lock_outline),
+                              labelText: 'Password',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _isSubmitting ? null : _submit,
+                              icon: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : Icon(_isRegisterMode
+                                      ? Icons.person_add_alt
+                                      : Icons.login),
+                              label: Text(title),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 14),
-                    ],
-                    TextField(
-                      controller: _identifierController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Email or phone'),
                     ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      onSubmitted: (_) => _submit(),
-                      decoration: const InputDecoration(labelText: 'Password'),
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _isSubmitting ? null : _submit,
-                        child: _isSubmitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Text(title),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.center,
+                    child: TextButton(
                       onPressed: _isSubmitting
                           ? null
                           : () {
-                              setState(() => _isRegisterMode = !_isRegisterMode);
+                              setState(
+                                  () => _isRegisterMode = !_isRegisterMode);
                             },
                       child: Text(
                         _isRegisterMode
@@ -153,13 +182,43 @@ class _SignInScreenState extends State<SignInScreen> {
                             : 'Need an account? Create one',
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BrandLockup extends StatelessWidget {
+  const _BrandLockup();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.civicGreen,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.location_city, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MyCity', style: Theme.of(context).textTheme.titleLarge),
+            Text('City service desk',
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ],
     );
   }
 }
