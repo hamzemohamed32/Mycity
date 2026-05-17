@@ -30,9 +30,16 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
   final _imagePicker = ImagePicker();
   String _category = 'water';
   bool _isSubmitting = false;
+  int _queuedCount = 0;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   LatLng _selectedLocation = const LatLng(-1.286389, 36.817223);
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshQueuedCount();
+  }
 
   @override
   void dispose() {
@@ -44,11 +51,20 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     return 'mobile-${DateTime.now().microsecondsSinceEpoch}';
   }
 
-  Future<void> _saveOffline() async {
+  Future<void> _refreshQueuedCount() async {
+    final queued = await widget.offlineQueue.load();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _queuedCount = queued.length);
+  }
+
+  Future<bool> _queueCurrentDraft({required String successMessage}) async {
     final description = _descriptionController.text.trim();
     if (description.isEmpty) {
       _showMessage('Add a short description before saving.');
-      return;
+      return false;
     }
 
     await widget.offlineQueue.enqueue({
@@ -63,10 +79,33 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     });
 
     if (!mounted) {
+      return true;
+    }
+
+    await _refreshQueuedCount();
+    _showMessage(successMessage);
+    return true;
+  }
+
+  Future<void> _saveOffline() async {
+    final saved = await _queueCurrentDraft(
+      successMessage: 'Complaint saved offline and queued for sync.',
+    );
+
+    if (!saved || !mounted) {
       return;
     }
 
-    _showMessage('Complaint saved offline and queued for sync.');
+    final reportAnother = await _showQueuedDialog();
+    if (!mounted) {
+      return;
+    }
+
+    if (reportAnother == true) {
+      _resetDraft();
+    } else {
+      Navigator.of(context).pop(true);
+    }
   }
 
   Future<void> _submitNow() async {
@@ -115,13 +154,29 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       }
 
       if (reportAnother == true) {
-        _descriptionController.clear();
-        _clearImage();
+        _resetDraft();
       } else {
         Navigator.of(context).pop(true);
       }
     } on ApiException catch (error) {
-      _showMessage(error.message);
+      if (error.statusCode == 0) {
+        final saved = await _queueCurrentDraft(
+          successMessage: 'Server unavailable. Report saved offline for sync.',
+        );
+        if (saved && mounted) {
+          final reportAnother = await _showQueuedDialog();
+          if (!mounted) {
+            return;
+          }
+          if (reportAnother == true) {
+            _resetDraft();
+          } else {
+            Navigator.of(context).pop(true);
+          }
+        }
+      } else {
+        _showMessage(error.message);
+      }
     } catch (_) {
       _showMessage('Unable to submit the complaint right now.');
     } finally {
@@ -163,6 +218,11 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     });
   }
 
+  void _resetDraft() {
+    _descriptionController.clear();
+    _clearImage();
+  }
+
   Future<bool?> _showSuccessDialog() {
     return showDialog<bool>(
       context: context,
@@ -170,6 +230,28 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         title: const Text('Report submitted'),
         content:
             const Text('The city team can now review and update this issue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Report another'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('View map'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showQueuedDialog() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Saved offline'),
+        content: const Text(
+          'This report will sync automatically when the app can reach the backend.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -197,12 +279,30 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          _SubmitHeader(queuedCount: _queuedCount),
+          const SizedBox(height: 16),
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(value: 'water', label: Text('Water')),
-              ButtonSegment(value: 'roads', label: Text('Roads')),
-              ButtonSegment(value: 'lighting', label: Text('Lighting')),
-              ButtonSegment(value: 'waste', label: Text('Waste')),
+              ButtonSegment(
+                value: 'water',
+                label: Text('Water'),
+                icon: Icon(Icons.water_drop_outlined),
+              ),
+              ButtonSegment(
+                value: 'roads',
+                label: Text('Roads'),
+                icon: Icon(Icons.route_outlined),
+              ),
+              ButtonSegment(
+                value: 'lighting',
+                label: Text('Lighting'),
+                icon: Icon(Icons.lightbulb_outline),
+              ),
+              ButtonSegment(
+                value: 'waste',
+                label: Text('Waste'),
+                icon: Icon(Icons.delete_outline),
+              ),
             ],
             selected: {_category},
             onSelectionChanged: (selection) {
@@ -334,13 +434,13 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          FilledButton.icon(
+          OutlinedButton.icon(
             onPressed: _isSubmitting ? null : _saveOffline,
             icon: const Icon(Icons.cloud_off_outlined),
             label: const Text('Save offline'),
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
+          FilledButton.icon(
             onPressed: _isSubmitting ? null : _submitNow,
             icon: _isSubmitting
                 ? const SizedBox(
@@ -350,6 +450,59 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
                   )
                 : const Icon(Icons.send_outlined),
             label: const Text('Submit now'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubmitHeader extends StatelessWidget {
+  const _SubmitHeader({required this.queuedCount});
+
+  final int queuedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.civicGreen.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.add_location_alt_outlined,
+              color: AppColors.civicGreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'New city report',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  queuedCount == 0
+                      ? 'Submit now or save offline if the backend is unavailable.'
+                      : '$queuedCount offline report${queuedCount == 1 ? '' : 's'} waiting to sync.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ],
       ),
