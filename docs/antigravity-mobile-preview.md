@@ -21,7 +21,9 @@ Recommended local flow:
 3. Run task `MyCity: mobile preview server`.
 4. Run command `Mobile Preview: Show`.
 
-The workspace setting `mobile-preview.url` points the extension to `http://127.0.0.1:8082/mobile-preview.html`.
+The workspace setting `mobile-preview.url` points the extension directly to the real Flutter app at `http://127.0.0.1:8082/`.
+
+Use `http://127.0.0.1:8082/mobile-preview.html` only in a normal browser when you want the custom MyCity preview wrapper. Do not use that wrapper inside the Phone Preview extension, because the extension already provides the phone frame.
 
 For live Flutter debugging, use launch configuration `MyCity Mobile Preview (Chrome)`.
 
