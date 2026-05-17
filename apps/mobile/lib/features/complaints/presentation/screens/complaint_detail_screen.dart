@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../../shared/theme/app_theme.dart';
 import '../../data/repositories/complaints_repository.dart';
 import '../../domain/models/complaint_record.dart';
 
@@ -38,8 +39,16 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
   }
 
   Future<ComplaintRecord> _loadComplaint() {
+    final token = widget.sessionController.accessToken;
+    if (token == null) {
+      throw ApiException(
+        statusCode: 401,
+        message: 'Your session has expired. Sign in again.',
+      );
+    }
+
     return widget.complaintsRepository.getComplaint(
-      token: widget.sessionController.accessToken!,
+      token: token,
       complaintId: widget.complaintId,
     );
   }
@@ -115,7 +124,16 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Complaint detail')),
+      appBar: AppBar(
+        title: const Text('Complaint detail'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: FutureBuilder<ComplaintRecord>(
         future: _complaintFuture,
         builder: (context, snapshot) {
@@ -125,16 +143,33 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
 
           if (snapshot.hasError) {
             return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Unable to load this complaint.'),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _reload,
-                    child: const Text('Try again'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.report_problem_outlined,
+                        size: 42, color: AppColors.civicGreen),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Unable to load this complaint',
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _friendlyError(snapshot.error),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _reload,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try again'),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -144,89 +179,356 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Container(
-                height: 220,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFCADFD8), Color(0xFFE8EFEA)],
+              _StatusHeader(complaint: complaint),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: AppColors.border.withValues(alpha: 0.55),
+                    border: Border.all(color: AppColors.border),
                   ),
-                ),
-                child: complaint.imageUrl != null && complaint.imageUrl!.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(28),
-                        child: Image.network(
+                  child: complaint.imageUrl != null &&
+                          complaint.imageUrl!.isNotEmpty
+                      ? Image.network(
                           complaint.imageUrl!,
                           fit: BoxFit.cover,
-                        ),
-                      )
-                    : const Center(
-                        child: Icon(Icons.image_outlined, size: 46),
-                      ),
+                          errorBuilder: (_, __, ___) => const _ImageFallback(),
+                        )
+                      : const _ImageFallback(),
+                ),
               ),
-              const SizedBox(height: 18),
-              Text(
-                complaint.title,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${complaint.statusLabel} / ${complaint.districtName ?? 'Unassigned district'} / ${complaint.supportCount} supporters',
-              ),
-              const SizedBox(height: 18),
-              Text(complaint.description),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
+              const SizedBox(height: 16),
+              _InfoPanel(
+                title: 'Report details',
                 children: [
-                  Chip(label: Text(complaint.category)),
-                  Chip(label: Text(complaint.statusLabel)),
-                  if (complaint.districtName != null)
-                    Chip(label: Text(complaint.districtName!)),
+                  Text(
+                    complaint.description,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _MetaChip(
+                          icon: Icons.category_outlined,
+                          label: complaint.category),
+                      _MetaChip(
+                          icon: Icons.location_city_outlined,
+                          label:
+                              complaint.districtName ?? 'Unassigned district'),
+                      _MetaChip(
+                          icon: Icons.group_outlined,
+                          label: '${complaint.supportCount} supporters'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _LocationSummary(complaint: complaint),
                 ],
               ),
-              const SizedBox(height: 24),
+              if (complaint.adminNote != null &&
+                  complaint.adminNote!.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _InfoPanel(
+                  title: 'Latest city note',
+                  children: [
+                    Text(complaint.adminNote!),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _isSaving ? null : _supportComplaint,
-                icon: const Icon(Icons.thumb_up_alt_outlined),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.thumb_up_alt_outlined),
                 label: const Text('Support this issue'),
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _commentController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Add a comment',
-                  hintText: 'Share more detail for district teams.',
-                ),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton(
-                  onPressed: _isSaving ? null : _addComment,
-                  child: const Text('Post comment'),
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (complaint.comments.isEmpty)
-                const Text('No comments yet.')
-              else
-                ...complaint.comments.map(
-                  (comment) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _CommentRow(
-                      author: comment.authorName,
-                      body: comment.body,
+              _InfoPanel(
+                title: 'Comments',
+                children: [
+                  TextField(
+                    controller: _commentController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Add a comment',
+                      hintText: 'Share more detail for district teams.',
                     ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      onPressed: _isSaving ? null : _addComment,
+                      icon: const Icon(Icons.send_outlined),
+                      label: const Text('Post comment'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (complaint.comments.isEmpty)
+                    Text(
+                      'No comments yet.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )
+                  else
+                    ...complaint.comments.map(
+                      (comment) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _CommentRow(
+                          author: comment.authorName,
+                          body: comment.body,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ],
           );
         },
       ),
     );
+  }
+
+  String _friendlyError(Object? error) {
+    if (error is ApiException) {
+      return error.message;
+    }
+
+    final message = error?.toString().trim() ?? '';
+    if (message.isNotEmpty) {
+      return message;
+    }
+
+    return 'Check your connection and try again.';
+  }
+}
+
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.complaint});
+
+  final ComplaintRecord complaint;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = _statusColor(complaint.status);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(_statusIcon(complaint.status), color: statusColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      complaint.title,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Reported by ${complaint.createdByName ?? 'Citizen'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _StatusSteps(status: complaint.status),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusSteps extends StatelessWidget {
+  const _StatusSteps({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      ('pending', 'Received'),
+      ('in_progress', 'In progress'),
+      ('resolved', 'Resolved'),
+    ];
+    final activeIndex = steps.indexWhere((step) => step.$1 == status);
+    final resolvedIndex = activeIndex < 0 ? 0 : activeIndex;
+
+    return Row(
+      children: [
+        for (var index = 0; index < steps.length; index++) ...[
+          Expanded(
+            child: Column(
+              children: [
+                Icon(
+                  index <= resolvedIndex
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: index <= resolvedIndex
+                      ? AppColors.civicGreen
+                      : AppColors.muted,
+                  size: 20,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  steps[index].$2,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (index < steps.length - 1)
+            Container(
+              width: 24,
+              height: 1,
+              color: index < resolvedIndex
+                  ? AppColors.civicGreen
+                  : AppColors.border,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InfoPanel extends StatelessWidget {
+  const _InfoPanel({
+    required this.title,
+    required this.children,
+  });
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationSummary extends StatelessWidget {
+  const _LocationSummary({required this.complaint});
+
+  final ComplaintRecord complaint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.canvas,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.pin_drop_outlined, color: AppColors.civicGreen),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Location ${complaint.lat.toStringAsFixed(5)}, ${complaint.lng.toStringAsFixed(5)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+}
+
+class _ImageFallback extends StatelessWidget {
+  const _ImageFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Icon(Icons.image_outlined, size: 46, color: AppColors.muted),
+    );
+  }
+}
+
+Color _statusColor(String status) {
+  switch (status) {
+    case 'resolved':
+      return AppColors.resolved;
+    case 'in_progress':
+      return AppColors.safetyBlue;
+    default:
+      return AppColors.attention;
+  }
+}
+
+IconData _statusIcon(String status) {
+  switch (status) {
+    case 'resolved':
+      return Icons.check_circle_outline;
+    case 'in_progress':
+      return Icons.construction_outlined;
+    default:
+      return Icons.schedule;
   }
 }
 
@@ -244,8 +546,9 @@ class _CommentRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.canvas,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

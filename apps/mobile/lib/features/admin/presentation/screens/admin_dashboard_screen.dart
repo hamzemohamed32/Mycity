@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/network/api_exception.dart';
 import '../../../../shared/storage/session/session_controller.dart';
+import '../../../../shared/theme/app_theme.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../complaints/data/repositories/complaints_repository.dart';
 import '../../../complaints/domain/models/complaint_record.dart';
@@ -238,6 +239,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 _SummaryRow(complaints: complaints),
+                if (_isMayorView) ...[
+                  const SizedBox(height: 16),
+                  _MayorOperationsPanel(
+                    complaints: complaints,
+                    onOpenComplaint: _openComplaintManager,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SegmentedButton<String>(
                   segments: const [
@@ -345,6 +353,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return 'Admin Dashboard';
     }
   }
+
+  bool get _isMayorView =>
+      widget.sessionController.session?.role == 'city_admin' ||
+      widget.sessionController.session?.role == 'system_admin';
 }
 
 class _Header extends StatelessWidget {
@@ -361,13 +373,14 @@ class _Header extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFE3F1EC),
+        color: AppColors.civicGreen.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
           const CircleAvatar(
-            backgroundColor: Color(0xFF0E7C66),
+            backgroundColor: AppColors.civicGreen,
             foregroundColor: Colors.white,
             child: Icon(Icons.admin_panel_settings_outlined),
           ),
@@ -416,6 +429,145 @@ class _SummaryRow extends StatelessWidget {
             label: 'Resolved',
             value: resolved),
       ],
+    );
+  }
+}
+
+class _MayorOperationsPanel extends StatelessWidget {
+  const _MayorOperationsPanel({
+    required this.complaints,
+    required this.onOpenComplaint,
+  });
+
+  final List<ComplaintRecord> complaints;
+  final ValueChanged<ComplaintRecord> onOpenComplaint;
+
+  @override
+  Widget build(BuildContext context) {
+    final unresolved = complaints
+        .where((item) => item.status != 'resolved')
+        .toList()
+      ..sort((a, b) => b.supportCount.compareTo(a.supportCount));
+    final unassigned = unresolved
+        .where(
+            (item) => item.status == 'pending' || item.assignedAdminId == null)
+        .length;
+    final top = unresolved.take(3).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.insights_outlined, color: AppColors.safetyBlue),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Mayor operations view',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _StatChip(
+                icon: Icons.warning_amber_outlined,
+                label: 'Needs action',
+                value: unresolved.length,
+              ),
+              _StatChip(
+                icon: Icons.person_search_outlined,
+                label: 'Unassigned',
+                value: unassigned,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (top.isEmpty)
+            Text(
+              'No unresolved complaints need mayor attention.',
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          else
+            ...top.map(
+              (complaint) => _OperationalFocusTile(
+                complaint: complaint,
+                onOpen: () => onOpenComplaint(complaint),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OperationalFocusTile extends StatelessWidget {
+  const _OperationalFocusTile({
+    required this.complaint,
+    required this.onOpen,
+  });
+
+  final ComplaintRecord complaint;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Material(
+        color: AppColors.canvas,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.attention.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.priority_high,
+                      color: AppColors.attention),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        complaint.title,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${complaint.statusLabel} / ${complaint.supportCount} supporters / ${complaint.districtName ?? 'Unassigned'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -491,7 +643,7 @@ class _ComplaintManagementTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -500,7 +652,7 @@ class _ComplaintManagementTile extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE0E6E3)),
+            border: Border.all(color: AppColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,7 +662,8 @@ class _ComplaintManagementTile extends StatelessWidget {
                 children: [
                   const CircleAvatar(
                     backgroundColor: Color(0xFFE3F1EC),
-                    child: Icon(Icons.place_outlined, color: Color(0xFF0E7C66)),
+                    child:
+                        Icon(Icons.place_outlined, color: AppColors.civicGreen),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -679,6 +832,27 @@ class _AdminComplaintSheetState extends State<_AdminComplaintSheet> {
           ),
           const SizedBox(height: 8),
           Text(widget.complaint.description),
+          if (widget.complaint.adminNote != null &&
+              widget.complaint.adminNote!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.canvas,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.sticky_note_2_outlined,
+                      color: AppColors.safetyBlue),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(widget.complaint.adminNote!)),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
