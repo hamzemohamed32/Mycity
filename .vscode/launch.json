@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MyCity Mobile Preview (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "apps/mobile",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--web-port",
+        "8082",
+        "--dart-define",
+        "API_BASE_URL=http://127.0.0.1:4000/api/v1"
+      ]
+    }
+  ]
+}

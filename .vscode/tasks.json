@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MyCity: backend stack up",
+      "type": "shell",
+      "command": "npm run infra:up",
+      "problemMatcher": []
+    },
+    {
+      "label": "MyCity: mobile web build",
+      "type": "shell",
+      "command": "puro --skip-cache-sync flutter build web --no-tree-shake-icons --dart-define=API_BASE_URL=http://127.0.0.1:4000/api/v1",
+      "options": {
+        "cwd": "${workspaceFolder}/apps/mobile"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MyCity: mobile preview server",
+      "type": "shell",
+      "command": "python -m http.server 8082 --bind 127.0.0.1",
+      "options": {
+        "cwd": "${workspaceFolder}/apps/mobile/build/web"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
